@@ -144,10 +144,13 @@ class PolymarketAdapter:
             r = await self.http.get(f"{CLOB_URL}/book", params={"token_id": token_id})
             r.raise_for_status()
             book = r.json()
+            # Polymarket returns bids ascending and asks descending, so bids[0]
+            # / asks[0] are the WORST levels. Take max bid / min ask for the true
+            # top of book (otherwise the spread reads ~0.98 on every market).
             bids = book.get("bids") or []
             asks = book.get("asks") or []
-            best_bid = float(bids[0]["price"]) if bids else 0.0
-            best_ask = float(asks[0]["price"]) if asks else 1.0
+            best_bid = max((float(b["price"]) for b in bids), default=0.0)
+            best_ask = min((float(a["price"]) for a in asks), default=1.0)
             return best_bid, best_ask
         except Exception as e:
             log.debug("clob book fetch failed for %s: %s", market_id, e)

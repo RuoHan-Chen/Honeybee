@@ -24,6 +24,7 @@ from ..store.repository import (
     TaskRecord,
     TrailEvent,
 )
+from ..venue.kalshi import KalshiAdapter
 from ..venue.polymarket import PolymarketAdapter
 
 log = logging.getLogger(__name__)
@@ -55,11 +56,18 @@ async def run_discovery(task: TaskRecord, repo: Repository, mandate: dict) -> di
     top_n = int(d.get("top_n", 20))
     verticals_allowed = set(mandate.get("verticals", [v.value for v in Vertical]))
 
-    adapter = PolymarketAdapter()
-    try:
-        raw_markets = await adapter.list_markets(limit=500)
-    finally:
-        await adapter.close()
+    # Pull from every configured venue; one venue failing must not sink the cycle.
+    raw_markets: list[Market] = []
+    for adapter in (PolymarketAdapter(), KalshiAdapter()):
+        venue_name = getattr(adapter, "name", type(adapter).__name__)
+        try:
+            ms = await adapter.list_markets(limit=500)
+            log.info("discovery: %s returned %d markets", venue_name, len(ms))
+            raw_markets.extend(ms)
+        except Exception as e:
+            log.warning("discovery: %s list_markets failed: %s", venue_name, e)
+        finally:
+            await adapter.close()
 
     now = datetime.now(timezone.utc)
     candidates: list[tuple[Market, float, str]] = []
