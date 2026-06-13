@@ -15,7 +15,7 @@ import { paperFill } from './paper.js';
 import { submitPolymarket } from './venues/polymarket.js';
 import { submitKalshi } from './venues/kalshi.js';
 import { resolveEns } from './wallet/ens.js';
-import { createAgentWallet, getAgentWallet, getPrivyWalletAddress } from './wallet/privy.js';
+import { createAgentWallet, getAgentWallet, getPrivyWalletAddress, sendTxFromPrivy } from './wallet/privy.js';
 import { anchorResearch, anchorResolution, anchorTrade } from './chain/attestation.js';
 import { getBroker } from './broker/index.js';
 
@@ -59,13 +59,41 @@ app.get('/identity', async () => {
 
 // Mint a new Privy-managed agent wallet on Arc.
 app.post('/wallet/create', async (req) => {
-  const body = req.body as { label?: string };
-  return createAgentWallet(body?.label);
+  const body = (req.body ?? {}) as { ownerKeyQuorumId?: string; policyIds?: string[] };
+  return createAgentWallet(body);
 });
 
 app.get('/wallet/:id', async (req) => {
   const { id } = req.params as { id: string };
   return (await getAgentWallet(id)) ?? { error: 'not found' };
+});
+
+// Agent → agent native payment on Arc. Caller passes the FROM wallet id
+// (Privy id) and a TO address. Per-tx value cap is enforced server-side by
+// the wallet's Privy policy.
+app.post('/agent/pay', async (req, reply) => {
+  const body = req.body as {
+    fromWalletId: string;
+    to: `0x${string}`;
+    valueWei: string; // bigint over JSON
+    memo?: string;
+  };
+  if (!body?.fromWalletId || !body?.to || !body?.valueWei) {
+    reply.code(400);
+    return { error: 'fromWalletId, to, valueWei required' };
+  }
+  try {
+    const out = await sendTxFromPrivy({
+      walletId: body.fromWalletId,
+      to: body.to,
+      valueWei: BigInt(body.valueWei),
+    });
+    return { ...out, memo: body.memo ?? null };
+  } catch (err: any) {
+    app.log.error({ err }, 'agent/pay failed');
+    reply.code(502);
+    return { error: err?.message ?? String(err) };
+  }
 });
 
 // ─── attestations (Arc testnet, mock fallback) ────────────────────────────
