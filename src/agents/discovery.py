@@ -24,8 +24,7 @@ from ..store.repository import (
     TaskRecord,
     TrailEvent,
 )
-from ..venue.kalshi import KalshiAdapter
-from ..venue.polymarket import PolymarketAdapter
+from ..venue.factory import build_venue
 
 log = logging.getLogger(__name__)
 
@@ -56,18 +55,16 @@ async def run_discovery(task: TaskRecord, repo: Repository, mandate: dict) -> di
     top_n = int(d.get("top_n", 20))
     verticals_allowed = set(mandate.get("verticals", [v.value for v in Vertical]))
 
-    # Pull from every configured venue; one venue failing must not sink the cycle.
-    raw_markets: list[Market] = []
-    for adapter in (PolymarketAdapter(), KalshiAdapter()):
-        venue_name = getattr(adapter, "name", type(adapter).__name__)
-        try:
-            ms = await adapter.list_markets(limit=500)
-            log.info("discovery: %s returned %d markets", venue_name, len(ms))
-            raw_markets.extend(ms)
-        except Exception as e:
-            log.warning("discovery: %s list_markets failed: %s", venue_name, e)
-        finally:
-            await adapter.close()
+    # Venue is mode-driven: Kalshi in demo/paper, Polymarket when live. Single
+    # venue per cycle, so the score needs no cross-venue normalisation.
+    live = os.getenv("LIVE_TRADING", "false").lower() in ("1", "true", "yes")
+    adapter = build_venue(live)
+    try:
+        raw_markets = await adapter.list_markets(limit=500)
+        log.info("discovery: venue=%s mode=%s returned %d markets",
+                 adapter.name, "live" if live else "demo", len(raw_markets))
+    finally:
+        await adapter.close()
 
     now = datetime.now(timezone.utc)
     candidates: list[tuple[Market, float, str]] = []

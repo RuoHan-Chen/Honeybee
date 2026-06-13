@@ -41,6 +41,8 @@ def _infer_vertical(tags: list[str], question: str) -> Vertical:
 
 
 class PolymarketAdapter:
+    name = "polymarket"
+
     def __init__(self, http: httpx.AsyncClient | None = None) -> None:
         self.http = http or httpx.AsyncClient(timeout=20.0)
 
