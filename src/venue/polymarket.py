@@ -160,3 +160,26 @@ class PolymarketAdapter:
 
     async def close(self) -> None:
         await self.http.aclose()
+
+
+async def resolve_clob_tokens(market_id: str, http: httpx.AsyncClient | None = None) -> tuple[str, str] | None:
+    """Resolve a Gamma market id to its (YES, NO) CLOB ERC-1155 token ids.
+
+    The CLOB is keyed by token id, not market id, so execution needs this lookup.
+    """
+    own = http is None
+    http = http or httpx.AsyncClient(timeout=15.0)
+    try:
+        r = await http.get(f"{GAMMA_URL}/markets/{market_id}")
+        r.raise_for_status()
+        raw = r.json().get("clobTokenIds") or "[]"
+        ids = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(ids, list) and len(ids) >= 2:
+            return str(ids[0]), str(ids[1])
+        return None
+    except Exception as e:
+        log.debug("resolve_clob_tokens failed for %s: %s", market_id, e)
+        return None
+    finally:
+        if own:
+            await http.aclose()
