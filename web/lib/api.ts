@@ -1,4 +1,5 @@
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const WALLET = process.env.NEXT_PUBLIC_WALLET_URL || 'http://127.0.0.1:8787';
 
 export interface Agent {
   ens: string;
@@ -111,4 +112,50 @@ export const api = {
     agent_ens: string; from_address: string; amount_usd: number;
     tx_hash?: string; kind?: 'fund' | 'hire' | 'x402';
   }) => j<{ ok: boolean }>('/pay', { method: 'POST', body: JSON.stringify(body) }),
+};
+
+// ─── Wallet service (TS, :8787) — fleet roster + activity feed ──────────
+export interface FleetAgent {
+  label: string;
+  role: string;
+  model: string;
+  description: string;
+  privyWalletId: string;
+  address: `0x${string}`;
+  node: `0x${string}`;
+  explorer?: { address: string | null };
+  ens?: {
+    name: string;
+    parent: string;
+    resolvedAddress: `0x${string}` | null;
+    verified: boolean;
+    checkedAt: number;
+    explorer: string;
+  } | null;
+}
+
+export interface Activity {
+  id: string;
+  ts: number;
+  kind: 'x402.required' | 'x402.paid' | 'x402.verified' | 'attestation' | 'agent.action';
+  actor?: string;
+  counterparty?: string;
+  summary: string;
+  details?: Record<string, unknown>;
+}
+
+export const walletApi = {
+  baseUrl: WALLET,
+  fleet: async (): Promise<FleetAgent[]> => {
+    const r = await fetch(`${WALLET}/agents/fleet`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`fleet ${r.status}`);
+    return r.json();
+  },
+  recentActivity: async (): Promise<Activity[]> => {
+    const r = await fetch(`${WALLET}/activity`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`activity ${r.status}`);
+    return r.json();
+  },
+  /** Returns an EventSource subscribed to the live activity feed. */
+  streamActivity: (): EventSource => new EventSource(`${WALLET}/activity/stream`),
 };

@@ -6,6 +6,7 @@ import { useUser } from './UserWallet';
 const links = [
   { href: '/', label: 'Dashboard' },
   { href: '/marketplace', label: 'Marketplace' },
+  { href: '/fleet', label: 'Agent Fleet' },
   { href: '/trades', label: 'Recommendations' },
   { href: '/settings', label: 'Settings' },
 ];

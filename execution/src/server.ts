@@ -14,7 +14,7 @@ import Fastify from 'fastify';
 import { paperFill } from './paper.js';
 import { submitPolymarket } from './venues/polymarket.js';
 import { submitKalshi } from './venues/kalshi.js';
-import { resolveEns } from './wallet/ens.js';
+import { resolveEns, resolveEnsOnSepolia } from './wallet/ens.js';
 import { createAgentWallet, getAgentWallet, getPrivyWalletAddress, sendTxFromPrivy } from './wallet/privy.js';
 import { anchorResearch, anchorResolution, anchorTrade } from './chain/attestation.js';
 import { getBroker } from './broker/index.js';
@@ -125,7 +125,50 @@ app.post('/agent/pay', async (req, reply) => {
 });
 
 // ─── Agent fleet + activity ───────────────────────────────────────────────
-app.get('/agents/fleet', async () => loadRoster());
+
+// Cache ENS-on-Sepolia verification so we don't hammer the public RPC on
+// every fleet fetch. Verification is "does <label>.<parent>.eth resolve to
+// this agent's Arc address on Sepolia L1?".
+const ENS_SEPOLIA_PARENT = process.env.ENS_SEPOLIA_NAME ?? null;
+interface EnsVerification {
+  name: string;
+  parent: string;
+  resolvedAddress: `0x${string}` | null;
+  verified: boolean;
+  checkedAt: number;
+  explorer: string;
+}
+const ensCache = new Map<string, EnsVerification>();
+const ENS_CACHE_TTL_MS = 60_000;
+
+async function ensInfoFor(label: string, agentAddress: `0x${string}`): Promise<EnsVerification | null> {
+  if (!ENS_SEPOLIA_PARENT) return null;
+  const name = `${label}.${ENS_SEPOLIA_PARENT}`;
+  const cached = ensCache.get(name);
+  if (cached && Date.now() - cached.checkedAt < ENS_CACHE_TTL_MS) return cached;
+  const resolved = await resolveEnsOnSepolia(name);
+  const info: EnsVerification = {
+    name,
+    parent: ENS_SEPOLIA_PARENT,
+    resolvedAddress: resolved,
+    verified: !!resolved && resolved.toLowerCase() === agentAddress.toLowerCase(),
+    checkedAt: Date.now(),
+    explorer: `https://sepolia.app.ens.domains/${name}`,
+  };
+  ensCache.set(name, info);
+  return info;
+}
+
+app.get('/agents/fleet', async () => {
+  const roster = loadRoster();
+  // Resolve ENS info in parallel. Failures are swallowed — UI just won't
+  // show the verified badge for that agent.
+  const enriched = await Promise.all(roster.map(async (a) => {
+    const ens = await ensInfoFor(a.label, a.address).catch(() => null);
+    return { ...a, ens };
+  }));
+  return enriched;
+});
 
 app.get('/activity', async () => recentActivity(100));
 
