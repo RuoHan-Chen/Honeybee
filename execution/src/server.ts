@@ -18,6 +18,11 @@ import { resolveEns } from './wallet/ens.js';
 import { createAgentWallet, getAgentWallet, getPrivyWalletAddress, sendTxFromPrivy } from './wallet/privy.js';
 import { anchorResearch, anchorResolution, anchorTrade } from './chain/attestation.js';
 import { getBroker } from './broker/index.js';
+import { findAgent, loadRoster } from './agents/registry.js';
+import { requireUsdcPayment } from './x402/server.js';
+import { events as activityEvents, recentActivity, emitActivity } from './x402/events.js';
+import { usdcToBaseUnits } from './chain/usdc.js';
+import { createHash, randomUUID } from 'node:crypto';
 
 const PORT = Number(process.env.WALLET_PORT ?? 8787);
 const DRY_RUN = (process.env.DRY_RUN ?? 'true').toLowerCase() !== 'false';
@@ -69,26 +74,49 @@ app.get('/wallet/:id', async (req) => {
 });
 
 // Agent → agent native payment on Arc. Caller passes the FROM wallet id
-// (Privy id) and a TO address. Per-tx value cap is enforced server-side by
-// the wallet's Privy policy.
+// (Privy id) and a TO that is either:
+//   - 0xaddress
+//   - ENS-shaped label ("sports-analyst") — resolved via var/agents.json
+// Per-tx value cap is enforced server-side by the wallet's Privy policy.
 app.post('/agent/pay', async (req, reply) => {
   const body = req.body as {
     fromWalletId: string;
-    to: `0x${string}`;
-    valueWei: string; // bigint over JSON
+    to: string;
+    valueWei: string;
     memo?: string;
   };
   if (!body?.fromWalletId || !body?.to || !body?.valueWei) {
     reply.code(400);
     return { error: 'fromWalletId, to, valueWei required' };
   }
+  let toAddress: `0x${string}`;
+  let toLabel: string | undefined;
+  if (body.to.startsWith('0x') && body.to.length === 42) {
+    toAddress = body.to as `0x${string}`;
+  } else {
+    const resolved = findAgent(body.to);
+    if (!resolved) {
+      reply.code(400);
+      return { error: `unknown agent label: ${body.to}` };
+    }
+    toAddress = resolved.address;
+    toLabel = resolved.label;
+  }
   try {
     const out = await sendTxFromPrivy({
       walletId: body.fromWalletId,
-      to: body.to,
+      to: toAddress,
       valueWei: BigInt(body.valueWei),
     });
-    return { ...out, memo: body.memo ?? null };
+    const fromAgent = loadRoster().find((a) => a.privyWalletId === body.fromWalletId);
+    emitActivity({
+      kind: 'agent.action',
+      actor: fromAgent?.label,
+      counterparty: toLabel ?? toAddress,
+      summary: `${fromAgent?.label ?? body.fromWalletId} paid ${toLabel ?? toAddress.slice(0, 8) + '…'} (native)`,
+      details: { txHash: out.hash, memo: body.memo ?? null },
+    });
+    return { ...out, memo: body.memo ?? null, resolved: { to: toAddress, label: toLabel ?? null } };
   } catch (err: any) {
     app.log.error({ err }, 'agent/pay failed');
     reply.code(502);
@@ -96,16 +124,168 @@ app.post('/agent/pay', async (req, reply) => {
   }
 });
 
+// ─── Agent fleet + activity ───────────────────────────────────────────────
+app.get('/agents/fleet', async () => loadRoster());
+
+app.get('/activity', async () => recentActivity(100));
+
+// POST /activity — publish an event into the in-process bus. Used by
+// out-of-process agents (e.g. scripts/agent_loop.ts) so the SSE stream
+// stays the single source of truth for the UI.
+app.post('/activity', async (req, reply) => {
+  const body = req.body as {
+    kind: 'x402.required' | 'x402.paid' | 'x402.verified' | 'attestation' | 'agent.action';
+    actor?: string;
+    counterparty?: string;
+    summary: string;
+    details?: Record<string, unknown>;
+  };
+  if (!body?.kind || !body?.summary) {
+    reply.code(400);
+    return { error: 'kind and summary required' };
+  }
+  emitActivity(body);
+  return { ok: true };
+});
+
+// Server-Sent Events feed for the live activity ticker.
+app.get('/activity/stream', async (_req, reply) => {
+  reply.raw.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache, no-transform',
+    'connection': 'keep-alive',
+    'access-control-allow-origin': '*',
+  });
+  // Prime with the buffer so a freshly-loaded UI isn't blank.
+  for (const a of recentActivity(50).reverse()) {
+    reply.raw.write(`data: ${JSON.stringify(a)}\n\n`);
+  }
+  const send = (a: unknown) => reply.raw.write(`data: ${JSON.stringify(a)}\n\n`);
+  activityEvents.on('activity', send);
+  reply.raw.on('close', () => activityEvents.off('activity', send));
+});
+
+// ─── x402-paid signal endpoint ────────────────────────────────────────────
+// GET /agent/:label/signal?market=<id>
+//   - 402 Payment Required (USDC on Arc) on first hit
+//   - 200 with a signed prediction once payment is verified
+//
+// The "prediction" is a deterministic mock (seeded by agent + market) so the
+// demo is reproducible without burning LLM credits, but the path is real:
+// real USDC tx, real on-chain verification, real Privy-signed retry.
+const SIGNAL_PRICE_USDC: Record<string, number> = {
+  'sports-analyst': 0.005,
+  'politics-analyst': 0.003,
+  // Anything not listed defaults to 0.002 — alpha-trader doesn't sell signals.
+};
+
+function mockPrediction(agentLabel: string, marketId: string) {
+  const seed = createHash('sha256').update(`${agentLabel}:${marketId}`).digest();
+  // Fair price in [0.10, 0.90].
+  const fair = 0.10 + (seed.readUInt32BE(0) / 0xffffffff) * 0.80;
+  const confidence = 0.50 + (seed.readUInt32BE(4) / 0xffffffff) * 0.45;
+  return {
+    agent: agentLabel,
+    marketId,
+    fair_yes: Number(fair.toFixed(4)),
+    confidence: Number(confidence.toFixed(3)),
+    rationale: `${agentLabel} signal: deterministic mock based on market id (replace with real LLM in prod)`,
+    ts: Date.now(),
+  };
+}
+
+app.get('/agent/:label/signal', async (req, reply) => {
+  const { label } = req.params as { label: string };
+  const { market } = req.query as { market?: string };
+  if (!market) {
+    reply.code(400);
+    return { error: 'market query param required' };
+  }
+  const agent = findAgent(label);
+  if (!agent) {
+    reply.code(404);
+    return { error: `unknown agent ${label}` };
+  }
+  const price = SIGNAL_PRICE_USDC[agent.label] ?? 0.002;
+
+  const gated = requireUsdcPayment({
+    recipient: agent.address,
+    recipientLabel: agent.label,
+    priceBaseUnits: usdcToBaseUnits(price),
+    description: `${agent.label} signal for market ${market}`,
+    handler: ({ payer, txHash }) => {
+      const prediction = mockPrediction(agent.label, market);
+      const receiptId = randomUUID();
+      emitActivity({
+        kind: 'agent.action',
+        actor: agent.label,
+        counterparty: payer,
+        summary: `${agent.label} served signal for ${market.slice(0, 12)}… (fair=${prediction.fair_yes})`,
+        details: { receiptId, marketId: market, txHash, fair: prediction.fair_yes },
+      });
+      return {
+        receipt: { id: receiptId, paid_tx: txHash, payer, price_usdc: price },
+        prediction,
+      };
+    },
+  });
+  return gated(req as any, reply as any);
+});
+
 // ─── attestations (Arc testnet, mock fallback) ────────────────────────────
-app.post('/attest/research', async (req) => {
-  const body = req.body as { researchHash: string; ens: string; marketId: string };
-  return anchorResearch(body);
+app.post('/attest/research', async (req, reply) => {
+  const body = req.body as {
+    researchHash: string;
+    ens: string;
+    marketId: string;
+    /** Optional: explicit Privy walletId. If absent, resolves from `ens` via roster. */
+    fromWalletId?: string;
+  };
+  // Auto-resolve walletId from the ENS label so callers don't have to plumb it.
+  let fromWalletId = body.fromWalletId;
+  if (!fromWalletId) {
+    const agent = findAgent(body.ens);
+    if (agent) fromWalletId = agent.privyWalletId;
+  }
+  try {
+    const result = await anchorResearch({ ...body, fromWalletId });
+    emitActivity({
+      kind: 'attestation',
+      actor: body.ens,
+      summary: `${body.ens} anchored research for ${body.marketId} on Arc${result.mock ? ' (mock)' : ''}`,
+      details: {
+        txHash: result.tx_hash,
+        marketId: body.marketId,
+        researchHash: body.researchHash,
+        mock: result.mock,
+        explorer: result.explorer_url,
+      },
+    });
+    return result;
+  } catch (err: any) {
+    app.log.error({ err }, 'attest/research failed');
+    reply.code(500);
+    return { error: err?.message ?? String(err) };
+  }
 });
 
 app.post('/attest/trade', async (req) => {
-  const body = req.body as { recId: string; user: `0x${string}`; marketId: string;
-    side: 'BUY' | 'SELL'; price: number; sizeUsd: number };
-  return anchorTrade(body);
+  const body = req.body as {
+    recId: string;
+    ens?: string;
+    user: `0x${string}`;
+    marketId: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    sizeUsd: number;
+    fromWalletId?: string;
+  };
+  let fromWalletId = body.fromWalletId;
+  if (!fromWalletId && body.ens) {
+    const agent = findAgent(body.ens);
+    if (agent) fromWalletId = agent.privyWalletId;
+  }
+  return anchorTrade({ ...body, fromWalletId });
 });
 
 app.post('/attest/resolution', async (req) => {
