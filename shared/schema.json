@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Honeybee shared types",
+  "definitions": {
+    "Market": {
+      "type": "object",
+      "required": ["venue", "market_id", "question", "outcomes", "prices", "volume_24h", "liquidity"],
+      "properties": {
+        "venue": { "type": "string", "enum": ["polymarket", "kalshi", "gemini"] },
+        "market_id": { "type": "string" },
+        "question": { "type": "string" },
+        "outcomes": { "type": "array", "items": { "type": "string" } },
+        "prices": { "type": "object", "additionalProperties": { "type": "number" } },
+        "volume_24h": { "type": "number" },
+        "liquidity": { "type": "number" },
+        "close_time": { "type": ["string", "null"], "format": "date-time" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "url": { "type": ["string", "null"] }
+      }
+    },
+    "Order": {
+      "type": "object",
+      "required": ["venue", "market_id", "outcome", "side", "limit_price", "size_usd", "dry_run", "idempotency_key"],
+      "properties": {
+        "venue": { "type": "string" },
+        "market_id": { "type": "string" },
+        "outcome": { "type": "string" },
+        "side": { "type": "string", "enum": ["BUY", "SELL"] },
+        "limit_price": { "type": "number", "minimum": 0, "maximum": 1 },
+        "size_usd": { "type": "number", "minimum": 0 },
+        "max_slippage_bps": { "type": "integer", "minimum": 0 },
+        "dry_run": { "type": "boolean" },
+        "idempotency_key": { "type": "string" }
+      }
+    },
+    "Fill": {
+      "type": "object",
+      "required": ["venue", "market_id", "outcome", "side", "avg_price", "filled_usd"],
+      "properties": {
+        "venue": { "type": "string" },
+        "market_id": { "type": "string" },
+        "outcome": { "type": "string" },
+        "side": { "type": "string", "enum": ["BUY", "SELL"] },
+        "avg_price": { "type": "number" },
+        "filled_usd": { "type": "number" },
+        "fee_usd": { "type": "number" },
+        "paper": { "type": "boolean" }
+      }
+    }
+  }
+}

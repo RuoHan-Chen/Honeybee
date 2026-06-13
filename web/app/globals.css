@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body { background: #0d0f12; color: #e6e9ee; }
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-white/10 bg-ink-800/60 p-5 shadow-lg shadow-black/30;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium
+           transition focus:outline-none focus:ring-2 focus:ring-honey-400/60 disabled:opacity-50;
+  }
+  .btn-primary { @apply btn bg-honey-500 text-ink-900 hover:bg-honey-400; }
+  .btn-ghost   { @apply btn bg-white/5 text-white hover:bg-white/10; }
+  .input {
+    @apply w-full rounded-lg border border-white/10 bg-ink-900 px-3 py-2 text-sm
+           focus:border-honey-400 focus:outline-none focus:ring-1 focus:ring-honey-400;
+  }
+  .label { @apply mb-1 block text-xs font-medium uppercase tracking-wider text-white/60; }
+  .pill  { @apply inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-xs; }
+  .pill-good { @apply pill bg-emerald-500/15 text-emerald-300; }
+  .pill-warn { @apply pill bg-amber-500/15 text-amber-300; }
+  .pill-bad  { @apply pill bg-rose-500/15 text-rose-300; }
+}
