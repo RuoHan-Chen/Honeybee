@@ -6,7 +6,9 @@
  * persisted server-side. The agent's own keys are NEVER used to move user funds.
  */
 export interface PolymarketCreds { apiKey: string; apiSecret: string; passphrase: string; funder: `0x${string}`; }
-export interface KalshiCreds     { email: string; password: string; }
+// Kalshi authenticates with an RSA API key (key id + private key), NOT
+// email/password. Requests are RSA-PSS signed; see ../venues/kalshi.ts.
+export interface KalshiCreds     { apiKeyId: string; privateKeyPem: string; }
 export interface GeminiCreds     { apiKey: string; apiSecret: string; }
 
 export type BrokerCreds =

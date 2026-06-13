@@ -61,9 +61,11 @@ class Config:
     # Venues
     polymarket_gamma_url: str = _env("POLYMARKET_GAMMA_URL", "https://gamma-api.polymarket.com")
     polymarket_clob_url: str = _env("POLYMARKET_CLOB_URL", "https://clob.polymarket.com")
+    # Public read endpoints need no auth. The RSA API key (id + private key) is
+    # only used by the TS wallet service for authed order submission.
     kalshi_api_url: str = _env("KALSHI_API_URL", "https://api.elections.kalshi.com/trade-api/v2")
-    kalshi_email: str = _env("KALSHI_EMAIL")
-    kalshi_password: str = _env("KALSHI_PASSWORD")
+    kalshi_api_key_id: str = _env("KALSHI_API_KEY_ID")
+    kalshi_private_key_path: str = _env("KALSHI_PRIVATE_KEY_PATH")
     gemini_api_url: str = _env("GEMINI_API_URL", "https://api.gemini.com")
     gemini_api_key: str = _env("GEMINI_API_KEY")
     gemini_api_secret: str = _env("GEMINI_API_SECRET")
