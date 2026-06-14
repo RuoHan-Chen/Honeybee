@@ -51,9 +51,21 @@ export function UserWalletProvider({ children }: { children: React.ReactNode }) 
     } catch { /* ignore */ }
   }, [address, mode, perTradeLimit, dailyLimit]);
 
-  function connect(addr?: string) {
+  async function connect(addr?: string) {
     if (addr) { setAddress(addr); return; }
-    // Mock connect: synthesise an address. Replace with Privy login().
+    // Real wallet: open MetaMask (or any injected EIP-1193 provider).
+    const eth = typeof window !== 'undefined' ? (window as any).ethereum : null;
+    if (eth?.request) {
+      try {
+        const accounts: string[] = await eth.request({ method: 'eth_requestAccounts' });
+        if (accounts?.[0]) { setAddress(accounts[0]); return; }
+      } catch {
+        // user rejected the prompt → leave disconnected
+        return;
+      }
+    }
+    // No injected wallet (e.g. headless) — fall back to a mock address so the
+    // UI is still demoable.
     const a = '0x' + Array.from(crypto.getRandomValues(new Uint8Array(20)))
       .map((b) => b.toString(16).padStart(2, '0')).join('');
     setAddress(a);
