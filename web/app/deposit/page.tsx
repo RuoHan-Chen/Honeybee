@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 
 import { BlinkDeposit } from '@/components/BlinkDeposit';
+import { useUser } from '@/components/UserWallet';
 import { walletApi, type FleetAgent } from '@/lib/api';
 
 const PRESETS = [
@@ -40,6 +41,7 @@ export default function DepositPage() {
   const [amount, setAmount] = useState<number>(5);
   const [err, setErr] = useState<string | null>(null);
   const [lastTransfer, setLastTransfer] = useState<string | null>(null);
+  const user = useUser();
 
   useEffect(() => {
     walletApi
@@ -50,6 +52,12 @@ export default function DepositPage() {
       })
       .catch((e) => setErr(String(e)));
   }, []);
+
+  // Auto-fill the destination from the connected wallet so there's nothing to
+  // paste — user can still override or pick an agent.
+  useEffect(() => {
+    if (user.address && !custom) setCustom(user.address);
+  }, [user.address]);
 
   const agent = fleet.find((a) => a.address === selected);
   const preset = PRESETS.find((p) => p.id === presetId)!;

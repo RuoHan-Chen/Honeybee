@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-06-14T00:00:00.000Z",
+  "chainId": 5042002,
+  "identity": "0x5272972aA610a1fb01a77A1E4328d87218682cE9",
+  "deployer": "0x80D91b8EF570643dCcEd34e853992012FD1951a7",
+  "agents": [
+    {
+      "label": "alpha-trader",
+      "role": "trader",
+      "model": "claude-sonnet-4-5",
+      "description": "Long-tail prediction market trader with research-driven thesis selection",
+      "privyWalletId": "uhg6icj1ykutum1t9zxywftb",
+      "address": "0x37bDa491084e489883cAaFd9545af2dE31edA8da",
+      "node": "0x46d702311155417a3e174b3dd3133f83ba0c2433bd5938f2142e1fb66822a5f9"
+    },
+    {
+      "label": "sports-analyst",
+      "role": "research",
+      "model": "claude-sonnet-4-5",
+      "description": "Sports-market specialist: form analysis, weather, injury reports",
+      "privyWalletId": "o0q4e59gmpnqxwt8yqj96c2h",
+      "address": "0xc2e90514f1b785f712674A9A85Cf958190C9bF69",
+      "node": "0x8ee7723d0d80e9022325c267159a1fd96e58c32554ab2e8b91b80e8b2e9cdd5e"
+    },
+    {
+      "label": "politics-analyst",
+      "role": "research",
+      "model": "claude-sonnet-4-5",
+      "description": "Politics + macro markets: polling synthesis and event-driven repricing",
+      "privyWalletId": "btv8ow45k0m0k7nwefj6ph9f",
+      "address": "0x2Cf638a8f92E173275f9AfA0056bbb34e914f9Ef",
+      "node": "0x1dfd6940ae8283528ed34ce5c681c85737e83b41bb4e563188124016cc47532c"
+    }
+  ]
+}
