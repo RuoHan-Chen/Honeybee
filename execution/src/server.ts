@@ -217,8 +217,8 @@ app.get('/activity/stream', async (_req, reply) => {
 // demo is reproducible without burning LLM credits, but the path is real:
 // real USDC tx, real on-chain verification, real Privy-signed retry.
 const SIGNAL_PRICE_USDC: Record<string, number> = {
-  'sports-analyst': 0.005,
-  'politics-analyst': 0.003,
+  'sports-analyst': 0.25,
+  'politics-analyst': 0.15,
   // Anything not listed defaults to 0.002 — alpha-trader doesn't sell signals.
 };
 

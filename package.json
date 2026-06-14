@@ -1,10 +1,13 @@
 {
-  "name": "honeybee-execution",
+  "name": "honeybee",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch execution/src/server.ts",
+    "dev": "pnpm -C web dev",
+    "build:web": "pnpm -C web build",
+    "start:web": "pnpm -C web start",
+    "dev:wallet": "tsx watch execution/src/server.ts",
     "start": "tsx execution/src/server.ts",
     "build": "tsc -p execution/tsconfig.json"
   },

@@ -192,7 +192,9 @@ class KalshiWallet(Wallet):
     _DEMO = "https://external-api.demo.kalshi.co/trade-api/v2"
 
     def __init__(self) -> None:
-        self._base = os.getenv("KALSHI_API_URL", self._DEMO).rstrip("/")
+        self._base = os.getenv(
+            "KALSHI_EXEC_API_URL", os.getenv("KALSHI_API_URL", self._DEMO)
+        ).rstrip("/")
         self._key_id = os.getenv("KALSHI_API_KEY_ID", "").strip()
         self._key_path = os.getenv("KALSHI_PRIVATE_KEY_PATH", "").strip()
         if not self._key_id or not self._key_path:

@@ -5,7 +5,7 @@ NPM := npm --cache .npm-cache
 setup:
 	python3 -m venv .venv && .venv/bin/pip install -U pip && .venv/bin/pip install -e ".[dev]"
 	$(NPM) install
-	cd web && $(NPM) install
+	cd web && pnpm install
 
 wallet:
 	$(NPM) run start
@@ -17,7 +17,7 @@ demo:
 	.venv/bin/python -m honeybee.orchestrator
 
 web:
-	cd web && $(NPM) run dev
+	pnpm -C web dev
 
 # Run wallet (8787), orchestrator API (8000), orchestrator loop, and web (3000).
 up:
@@ -26,7 +26,7 @@ up:
 	  $(NPM) run start & \
 	  .venv/bin/python -m honeybee.api & \
 	  .venv/bin/python -m honeybee.orchestrator & \
-	  cd web && $(NPM) run dev & \
+	  pnpm -C web dev & \
 	  wait)
 
 test:

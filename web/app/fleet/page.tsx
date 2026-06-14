@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { AdvancedLayout } from '@/components/AdvancedLayout';
 import { walletApi, type FleetAgent, type Activity } from '@/lib/api';
 import { balancesFor } from '@/lib/arc';
 
@@ -10,11 +11,11 @@ interface AgentWithBal extends FleetAgent {
 
 function kindBadge(kind: Activity['kind']): { label: string; color: string } {
   switch (kind) {
-    case 'x402.required': return { label: '402',     color: 'bg-amber-500/15 text-amber-300' };
-    case 'x402.paid':     return { label: 'PAID',    color: 'bg-emerald-500/15 text-emerald-300' };
-    case 'x402.verified': return { label: 'SERVED',  color: 'bg-emerald-500/15 text-emerald-300' };
-    case 'attestation':   return { label: 'ATTEST',  color: 'bg-sky-500/15 text-sky-300' };
-    case 'agent.action':  return { label: 'AGENT',   color: 'bg-honey-500/15 text-honey-300' };
+    case 'x402.required': return { label: '402',     color: 'bg-amber-100 text-amber-800' };
+    case 'x402.paid':     return { label: 'PAID',    color: 'bg-emerald-100 text-emerald-800' };
+    case 'x402.verified': return { label: 'SERVED',  color: 'bg-emerald-100 text-emerald-800' };
+    case 'attestation':   return { label: 'ATTEST',  color: 'bg-sky-100 text-sky-800' };
+    case 'agent.action':  return { label: 'AGENT',   color: 'bg-violet-100 text-violet-800' };
   }
 }
 
@@ -80,55 +81,49 @@ export default function FleetPage() {
   }, [fleet.length]);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Agent Fleet</h1>
-        <p className="mt-1 text-sm text-white/60">
-          Live view of the on-chain agent economy. Each agent has a Privy-managed wallet
-          on Arc, an ENS-shaped identity, and a policy-enforced spending cap. The activity
-          feed shows their autonomous payments + attestations in real time.
-        </p>
-      </div>
-
-      {err && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{err}</p>}
+    <AdvancedLayout
+      title="Agent fleet"
+      description="Live view of on-chain agent wallets on Arc — identities, balances, and autonomous x402 payments plus attestations."
+    >
+      {err && <p className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white">{err}</p>}
 
       <section className="grid gap-4 md:grid-cols-3">
         {fleet.map((a) => <AgentCard key={a.label} a={a} />)}
         {fleet.length === 0 && !err && (
-          <div className="card text-sm text-white/60">Loading roster…</div>
+          <div className="card text-sm text-ink-muted">Loading roster…</div>
         )}
       </section>
 
-      <section className="card">
+      <section className="card-terminal">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-white/60">Live activity</h2>
-          <div className="flex items-center gap-2 text-xs text-white/40">
+          <h2 className="text-xs font-medium uppercase tracking-widest text-ink-muted">Live activity</h2>
+          <div className="flex items-center gap-2 text-xs text-ink-muted">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
             streaming from {walletApi.baseUrl}
           </div>
         </div>
         {activity.length === 0 ? (
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-ink-muted">
             No activity yet.
           </p>
         ) : (
-          <ol className="space-y-1.5">
+          <ol className="divide-y divide-black/10 overflow-hidden rounded-lg border border-black/10">
             {activity.map((ev) => {
               const b = kindBadge(ev.kind);
               const tx = shortTx(ev.details?.txHash as string | undefined);
               const explorer = ev.details?.explorer as string | undefined;
               return (
-                <li key={ev.id} className="flex items-start gap-3 rounded-lg bg-white/[0.02] px-3 py-2 text-sm">
-                  <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 font-mono text-[10px] ${b.color}`}>
+                <li key={ev.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                  <span className={`inline-block w-14 shrink-0 rounded px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold ${b.color}`}>
                     {b.label}
                   </span>
-                  <span className="font-mono text-[10px] text-white/40 tabular-nums">{fmtTime(ev.ts)}</span>
-                  <span className="flex-1">{ev.summary}</span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-ink-muted">{fmtTime(ev.ts)}</span>
+                  <span className="flex-1 text-ink">{ev.summary}</span>
                   {tx && (
                     explorer
                       ? <a href={explorer} target="_blank" rel="noopener noreferrer"
-                          className="font-mono text-[10px] text-honey-400 hover:underline">{tx}</a>
-                      : <span className="font-mono text-[10px] text-white/40">{tx}</span>
+                          className="shrink-0 font-mono text-[11px] text-agent hover:underline">{tx}</a>
+                      : <span className="shrink-0 font-mono text-[11px] text-ink-faint">{tx}</span>
                   )}
                 </li>
               );
@@ -136,14 +131,14 @@ export default function FleetPage() {
           </ol>
         )}
       </section>
-    </div>
+    </AdvancedLayout>
   );
 }
 
 function AgentCard({ a }: { a: AgentWithBal }) {
   const ensName = a.ens?.name ?? `${a.label}.honeybee.agent`;
   return (
-    <div className="card">
+    <div className="card-terminal">
       <div className="flex items-start justify-between">
         <div>
           <div className="font-semibold">{a.label}</div>
@@ -152,7 +147,7 @@ function AgentCard({ a }: { a: AgentWithBal }) {
               href={a.ens.explorer}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-xs text-honey-400 hover:underline"
+              className="font-mono text-xs text-gold-dark hover:underline"
               title={a.ens.verified
                 ? `Resolves on Sepolia L1 → ${a.ens.resolvedAddress}`
                 : `Not yet resolving on Sepolia L1 (resolved=${a.ens.resolvedAddress ?? 'null'})`}
@@ -160,7 +155,7 @@ function AgentCard({ a }: { a: AgentWithBal }) {
               {ensName}
             </a>
           ) : (
-            <div className="font-mono text-xs text-honey-400">{ensName}</div>
+            <div className="font-mono text-xs text-gold-dark">{ensName}</div>
           )}
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -176,27 +171,27 @@ function AgentCard({ a }: { a: AgentWithBal }) {
           )}
         </div>
       </div>
-      <p className="mt-3 text-xs text-white/60">{a.description}</p>
+      <p className="mt-3 text-xs text-ink-muted">{a.description}</p>
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
-        <div className="rounded-lg bg-white/5 py-2">
+        <div className="rounded-lg bg-black/[0.04] py-2">
           <div className="text-base font-semibold tabular-nums">
             {a.arcBalance === undefined ? '—' : a.arcBalance.toFixed(4)}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-white/50">ARC</div>
+          <div className="text-[10px] uppercase tracking-wider text-ink-faint">ARC</div>
         </div>
-        <div className="rounded-lg bg-white/5 py-2">
+        <div className="rounded-lg bg-black/[0.04] py-2">
           <div className="text-base font-semibold tabular-nums">
             {a.usdcBalance === undefined ? '—' : `$${a.usdcBalance.toFixed(3)}`}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-white/50">USDC</div>
+          <div className="text-[10px] uppercase tracking-wider text-ink-faint">USDC</div>
         </div>
       </div>
 
-      <div className="mt-3 space-y-0.5 text-[10px] text-white/40">
+      <div className="mt-3 space-y-0.5 text-[10px] text-ink-muted">
         <div>privy <span className="font-mono">{a.privyWalletId.slice(0, 8)}…</span></div>
         <div>addr  <a href={a.explorer?.address ?? '#'} target="_blank" rel="noopener noreferrer"
-          className="font-mono text-honey-400 hover:underline">{a.address.slice(0, 10)}…{a.address.slice(-6)}</a></div>
+          className="font-mono text-gold-dark hover:underline">{a.address.slice(0, 10)}…{a.address.slice(-6)}</a></div>
         <div>model <span className="font-mono">{a.model}</span></div>
       </div>
     </div>
