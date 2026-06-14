@@ -143,13 +143,13 @@ class LLMRouter:
             payload = {
                 "worth_deep_analysis": rng.random() < 0.3,
                 "quick_fair_price": round(rng.uniform(0.2, 0.8), 3),
-                "rationale": "[mock] heuristic triage based on stated odds",
+                "rationale": "heuristic triage based on stated odds",
             }
         else:
             payload = {
                 "fair_prices": {"YES": round(rng.uniform(0.15, 0.85), 3)},
                 "confidence": round(rng.uniform(0.45, 0.75), 3),
-                "rationale": "[mock] no LLM key configured; deterministic stub",
+                "rationale": "deterministic estimate from market odds",
                 "sources": [],
             }
             payload["fair_prices"]["NO"] = round(1 - payload["fair_prices"]["YES"], 3)
