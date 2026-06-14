@@ -34,8 +34,9 @@ def _classify(m: Market) -> str:
     if any(k in text for k in ["nfl", "super bowl", "patriots", "chiefs", "eagles"]):
         return "sports.nfl"
     if any(k in text for k in ["chess", "carlsen", "nakamura", "fide", "grandmaster",
-                               "candidates", "gukesh", "nepomniachtchi", "ding liren",
-                               "caruana", "firouzja", "world chess"]):
+                               "candidates tournament", "gukesh", "nepomniachtchi",
+                               "ding liren", "caruana", "firouzja", "world chess",
+                               "chess olympiad", "grand chess tour"]):
         return "chess"
     if any(k in text for k in ["bitcoin", "btc", "ethereum", "eth", "solana", "sol"]):
         if any(k in text for k in ["price", "reach", "above", "below", "$"]):
