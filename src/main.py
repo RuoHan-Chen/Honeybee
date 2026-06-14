@@ -8,12 +8,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+for _k in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL"):
+    if not os.getenv(_k, "").strip():
+        os.environ.pop(_k, None)
 
 
 def _parse() -> argparse.Namespace:

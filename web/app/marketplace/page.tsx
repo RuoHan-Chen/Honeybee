@@ -1,29 +1,38 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { api, niceError, Agent, MarketCandidate, Recommendation } from '@/lib/api';
-import { useUser } from '@/components/UserWallet';
 
-/** Safe `.toFixed` for values that might be undefined/null (e.g. backend
- *  returned a partial recommendation or an error envelope). */
-function fmt(n: number | null | undefined, digits: number): string {
-  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(digits) : '—';
-}
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { api, type Agent, type MarketCandidate, type Recommendation } from '@/lib/api';
+import { AgentDirectory } from '@/components/AgentDirectory';
+import { MarketPicker } from '@/components/MarketPicker';
+import { ResearchBrief } from '@/components/ResearchBrief';
+import { FlowBanner } from '@/components/FlowBanner';
+import { useUser } from '@/components/UserWallet';
 
 const HOUSE_AGENT: Agent = {
   ens: 'house.honeybee.agent.eth',
   label: 'House',
-  wallet_id: null, wallet_address: null,
-  bankroll_usd: 1000, kelly_fraction: 0.25, confidence_floor: 0.55,
-  venue: 'polymarket', llm_tier: 'router', x402_daily_usd: 5, paused: 0, created_at: 0,
+  wallet_id: null,
+  wallet_address: null,
+  bankroll_usd: 1000,
+  kelly_fraction: 0.25,
+  confidence_floor: 0.55,
+  venue: 'polymarket',
+  llm_tier: 'router',
+  x402_daily_usd: 5,
+  paused: 0,
+  created_at: 0,
 };
 
-export default function Marketplace() {
+function MarketplaceInner() {
   const u = useUser();
+  const sp = useSearchParams();
+  const marketParam = sp.get('market');
+
   const [agents, setAgents] = useState<Agent[]>([]);
   const [markets, setMarkets] = useState<MarketCandidate[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string>(HOUSE_AGENT.ens);
-  const [selectedMarket, setSelectedMarket] = useState<string>('');
+  const [selectedAgent, setSelectedAgent] = useState(HOUSE_AGENT.ens);
+  const [selectedMarket, setSelectedMarket] = useState('');
   const [hiring, setHiring] = useState(false);
   const [result, setResult] = useState<Recommendation | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -32,16 +41,28 @@ export default function Marketplace() {
     api.listAgents().then((a) => setAgents([HOUSE_AGENT, ...a])).catch(() => setAgents([HOUSE_AGENT]));
     api.topMarkets().then((m) => {
       setMarkets(m);
-      if (m[0]) setSelectedMarket(m[0].market_id);
+      const pick = marketParam && m.some((x) => x.market_id === marketParam) ? marketParam : m[0]?.market_id ?? '';
+      setSelectedMarket(pick);
     }).catch(() => {});
-  }, []);
+  }, [marketParam]);
 
-  const market = useMemo(() => markets.find((m) => m.market_id === selectedMarket), [markets, selectedMarket]);
+  const market = useMemo(
+    () => markets.find((m) => m.market_id === selectedMarket),
+    [markets, selectedMarket],
+  );
 
-  async function hire() {
-    if (!u.address) { setErr('Connect a wallet first'); return; }
-    if (!market) { setErr('Pick a market'); return; }
-    setHiring(true); setErr(null); setResult(null);
+  async function runResearch() {
+    if (!u.address) {
+      setErr('Connect a wallet in Settings before running research.');
+      return;
+    }
+    if (!market) {
+      setErr('Select a market to research.');
+      return;
+    }
+    setHiring(true);
+    setErr(null);
+    setResult(null);
     try {
       const r = await api.hire({
         user_address: u.address,
@@ -50,138 +71,92 @@ export default function Marketplace() {
         market_id: market.market_id,
         price_usd: 0.05,
       });
-      // The backend returns either a full Recommendation or {error: "..."}.
-      // Without a real recommendation we have no fair_price etc. to render.
       const errMsg = (r as unknown as { error?: string })?.error;
       if (errMsg || typeof r?.fair_price !== 'number') {
-        setErr(errMsg ?? 'Agent returned no recommendation (no edge / low confidence).');
+        setErr(errMsg ?? 'Agent found no edge on this market (low confidence or no trade).');
         return;
       }
       setResult(r);
-    } catch (e: any) {
-      setErr(niceError(e));
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Research failed');
     } finally {
       setHiring(false);
     }
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Marketplace</h1>
-        <p className="mt-1 text-sm text-white/60">
-          Hire an agent (paid via <span className="text-honey-400">x402</span> on Arc) to research any market.
-          The agent never touches your funds — it returns a signed recommendation you approve or reject.
+    <div className="space-y-8 px-6 py-6">
+      <section>
+        <h1 className="font-display text-2xl font-medium text-ink">Hire research</h1>
+        <p className="mt-2 max-w-2xl text-sm text-ink-muted">
+          Choose an agent and market. You pay $0.05 USDC on Arc for a signed brief — the agent never touches your trading funds.
         </p>
+      </section>
+
+      {!u.address && (
+        <FlowBanner
+          message="Connect a wallet to run research."
+          href="/settings"
+          linkLabel="Connect wallet"
+        />
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-5">
+        <div className="lg:col-span-2">
+          <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-ink-faint">Agents</h2>
+          <AgentDirectory agents={agents} selectedEns={selectedAgent} onSelect={setSelectedAgent} />
+        </div>
+
+        <div className="lg:col-span-3">
+          <div className="sticky top-4 space-y-4">
+            <div className="card-terminal">
+              <h2 className="text-xs font-medium uppercase tracking-widest text-ink-faint">Run research</h2>
+              <p className="mt-1 font-mono text-xs text-gold/90">{selectedAgent}</p>
+
+              <div className="mt-4">
+                <label className="label">Market</label>
+                <MarketPicker
+                  markets={markets}
+                  selectedId={selectedMarket}
+                  onSelect={setSelectedMarket}
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-ink/8 pt-4">
+                <span className="text-sm text-ink-muted">
+                  Cost <span className="font-medium text-ink">$0.05 USDC</span> on Arc
+                </span>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={runResearch}
+                  disabled={hiring || !u.address || !selectedMarket}
+                >
+                  {hiring ? 'Researching…' : 'Run research'}
+                </button>
+              </div>
+
+              {err && (
+                <p className="mt-3 rounded-lg border border-edge-no/30 bg-edge-no/10 px-3 py-2 text-sm text-rose-200">
+                  {err}
+                </p>
+              )}
+            </div>
+
+            {result && (
+              <ResearchBrief rec={result} animate inboxLink />
+            )}
+          </div>
+        </div>
       </div>
-
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {agents.map((a) => (
-          <AgentCard key={a.ens} agent={a}
-            selected={selectedAgent === a.ens}
-            onSelect={() => setSelectedAgent(a.ens)} />
-        ))}
-      </section>
-
-      <section className="card space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-white/60">Hire</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="label">Agent</label>
-            <div className="input bg-ink-900 font-mono text-xs">{selectedAgent}</div>
-          </div>
-          <div>
-            <label className="label">Market</label>
-            <select className="input" value={selectedMarket}
-              onChange={(e) => setSelectedMarket(e.target.value)}>
-              {markets.length === 0 && <option value="">No markets discovered yet</option>}
-              {markets.map((m) => (
-                <option key={m.market_id} value={m.market_id}>
-                  [{m.venue}] {m.question.length > 80 ? m.question.slice(0, 80) + '…' : m.question}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between rounded-lg bg-ink-900/60 px-4 py-3 text-sm">
-          <span className="text-white/60">Cost: <b className="text-white">$0.05 USDC on Arc</b> via x402</span>
-          <button className="btn-primary" onClick={hire} disabled={hiring || !u.address || !selectedMarket}>
-            {hiring ? 'Researching…' : 'Hire agent ($0.05)'}
-          </button>
-        </div>
-        {!u.address && <p className="text-xs text-amber-300">Connect a wallet to hire.</p>}
-        {err && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{err}</p>}
-
-        {result && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
-            <div className="mb-2 font-semibold text-emerald-300">Recommendation ready</div>
-            <div className="grid gap-1 text-xs text-white/80">
-              <div><b>{result.market_question}</b></div>
-              <div>Outcome: <b>{result.outcome}</b> · side {result.side}</div>
-              <div>
-                Fair {fmt(result.fair_price, 3)} · Mkt {fmt(result.market_price, 3)} · edge{' '}
-                <b className={(result.edge ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                  {(result.edge ?? 0) >= 0 ? '+' : ''}{fmt(result.edge, 3)}
-                </b>
-              </div>
-              <div>
-                Confidence {fmt((result.confidence ?? 0) * 100, 0)}% · suggested size ${fmt(result.suggested_size_usd, 2)}
-              </div>
-              {result.research_hash && (
-                <div className="mt-1 font-mono text-[10px] text-white/40">research_hash {result.research_hash.slice(0, 18)}…</div>
-              )}
-              {result.research_attestation_tx && (
-                <div className="font-mono text-[10px] text-white/40">attest tx {result.research_attestation_tx.slice(0, 18)}…</div>
-              )}
-            </div>
-            <div className="mt-3">
-              <Link href={`/trades?id=${result.rec_id}`} className="btn-primary">Review & approve →</Link>
-            </div>
-          </div>
-        )}
-      </section>
     </div>
   );
 }
 
-function AgentCard({ agent, selected, onSelect }:
-  { agent: Agent; selected: boolean; onSelect: () => void }) {
-  const [rep, setRep] = useState<{ recommendations: number; executed_trades: number; resolutions_anchored: number } | null>(null);
-  useEffect(() => { api.reputation(agent.ens).then(setRep).catch(() => {}); }, [agent.ens]);
-
+export default function MarketplacePage() {
   return (
-    <button onClick={onSelect}
-      className={
-        'card text-left transition ' +
-        (selected ? 'border-honey-500/60 ring-1 ring-honey-500/40' : 'hover:border-honey-500/30')
-      }>
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="font-semibold">{agent.label}</div>
-          <div className="font-mono text-xs text-honey-400">{agent.ens}</div>
-        </div>
-        <span className="pill">{agent.venue}</span>
-      </div>
-      <p className="mt-3 text-xs text-white/60">
-        LLM tier <b>{agent.llm_tier}</b> · Kelly <b>{agent.kelly_fraction}</b> · floor <b>{agent.confidence_floor}</b>
-      </p>
-      {rep && (
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="rounded-lg bg-white/5 py-2">
-            <div className="text-base font-semibold">{rep.recommendations}</div>
-            <div className="text-[10px] uppercase tracking-wider text-white/50">recs</div>
-          </div>
-          <div className="rounded-lg bg-white/5 py-2">
-            <div className="text-base font-semibold">{rep.executed_trades}</div>
-            <div className="text-[10px] uppercase tracking-wider text-white/50">trades</div>
-          </div>
-          <div className="rounded-lg bg-white/5 py-2">
-            <div className="text-base font-semibold">{rep.resolutions_anchored}</div>
-            <div className="text-[10px] uppercase tracking-wider text-white/50">resolved</div>
-          </div>
-        </div>
-      )}
-    </button>
+    <Suspense fallback={<div className="px-6 py-6 text-sm text-ink-muted">Loading…</div>}>
+      <MarketplaceInner />
+    </Suspense>
   );
 }

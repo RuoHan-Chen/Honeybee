@@ -47,7 +47,10 @@ class Orchestrator:
         self.ledger = Ledger()
         self.llm = LLMRouter()
         self.venues = [PolymarketAdapter(), KalshiAdapter(), GeminiAdapter()]
-        self.discovery = DiscoveryAgent(self.venues)
+        self.discovery = DiscoveryAgent(
+            self.venues,
+            max_book_fetches=CONFIG.discovery_max_book_fetches,
+        )
         self.data_agent = DataAgent()
         self.research = ResearchAgent(self.llm)
         self.risk = RiskAgent(self.ledger)
@@ -103,7 +106,7 @@ class Orchestrator:
     async def tick(self) -> None:
         self.llm.reset_loop_budget()
 
-        scored = await self.discovery.scan(top_n=20)
+        scored = await self.discovery.scan(top_n=CONFIG.discovery_top_n)
         await self.ledger.record("discovery_scan", {"count": len(scored)})
         # Snapshot top candidates for the UI.
         await self.ledger.record("discovery_snapshot", {

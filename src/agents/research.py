@@ -29,6 +29,10 @@ from ..store.factory import build_repository
 from ..store.repository import Repository
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# Empty *_BASE_URL vars break the Anthropic SDK (inherits bad shell values).
+for _k in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL"):
+    if not os.getenv(_k, "").strip():
+        os.environ.pop(_k, None)
 
 log = logging.getLogger(__name__)
 _MANDATE_PATH = Path(__file__).resolve().parents[2] / "config" / "mandate.yaml"
