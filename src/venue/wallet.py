@@ -89,6 +89,10 @@ class LiveWallet(Wallet):
         self._sig_type = int(os.getenv("POLYMARKET_SIGNATURE_TYPE", "0"))
         self._funder = os.getenv("POLYMARKET_FUNDER", "").strip() or None
         self._host = os.getenv("POLYMARKET_CLOB_URL", "https://clob.polymarket.com")
+        # Optional pre-derived L2 API creds — skips the per-startup derive call.
+        self._api_key = os.getenv("POLYMARKET_API_KEY", "").strip()
+        self._api_secret = os.getenv("POLYMARKET_API_SECRET", "").strip()
+        self._api_passphrase = os.getenv("POLYMARKET_API_PASSPHRASE", "").strip()
         self._client = None  # built lazily (pulls in signing/network deps)
 
     def _client_sync(self):
@@ -102,8 +106,15 @@ class LiveWallet(Wallet):
                 self._host, chain_id=137, key=self._pk,
                 signature_type=self._sig_type, funder=funder,
             )
-            client.set_api_creds(client.create_or_derive_api_creds())
-            log.info("LiveWallet ready (funder=%s sig_type=%d)", funder, self._sig_type)
+            # Prefer pre-derived L2 creds from env; otherwise derive from the key.
+            if self._api_key and self._api_secret and self._api_passphrase:
+                from py_clob_client.clob_types import ApiCreds
+                client.set_api_creds(ApiCreds(self._api_key, self._api_secret, self._api_passphrase))
+                creds_src = "env"
+            else:
+                client.set_api_creds(client.create_or_derive_api_creds())
+                creds_src = "derived"
+            log.info("LiveWallet ready (funder=%s sig_type=%d L2=%s)", funder, self._sig_type, creds_src)
             self._client = client
         return self._client
 
