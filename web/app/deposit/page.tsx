@@ -1,29 +1,15 @@
 'use client';
 
-/**
- * Fund via Blink — one-tap USDC deposit.
- *
- * Two presets:
- *   - Base · USDC          → funds an agent's wallet for the agent economy (x402/Arc)
- *   - Polygon · USDC.e     → funds the Polymarket trading wallet directly
- *                            (Polymarket uses USDC.e 0x2791…, which Blink delivers)
- *
- * Destination defaults to the selected agent's on-chain address (pulled live
- * from the fleet roster — no hard-coded values); override with a custom address
- * to target your Polymarket funder.
- */
 import { useEffect, useState } from 'react';
-
+import { AdvancedLayout } from '@/components/AdvancedLayout';
 import { BlinkDeposit } from '@/components/BlinkDeposit';
 import { walletApi, type FleetAgent } from '@/lib/api';
 
 const PRESETS = [
-  // Testnet sandbox (NEXT_PUBLIC_BLINK_ENV=sandbox) — only Base Sepolia + Sepolia.
   { id: 'base-sepolia-usdc', label: 'Base Sepolia · USDC (sandbox)', chainId: 84532,
     token: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' },
   { id: 'sepolia-usdc', label: 'Sepolia · USDC (sandbox)', chainId: 11155111,
     token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
-  // Mainnet (NEXT_PUBLIC_BLINK_ENV=production).
   { id: 'base-usdc', label: 'Base · USDC (agent economy)', chainId: 8453,
     token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
   { id: 'polygon-usdce', label: 'Polygon · USDC.e (Polymarket trading)', chainId: 137,
@@ -57,36 +43,29 @@ export default function DepositPage() {
   const destination = (customValid ? custom.trim() : agent?.address) as `0x${string}` | undefined;
 
   return (
-    <main className="mx-auto max-w-xl px-6 py-10">
-      <h1 className="text-2xl font-semibold text-honey-300">Fund via Blink</h1>
-      <p className="mt-2 text-sm text-zinc-400">
-        One-tap USDC deposit — no bridging, no leaving the app. Signing happens server-side;
-        the merchant key never hits the browser.
-      </p>
+    <AdvancedLayout
+      title="Fund via Blink"
+      description="One-tap USDC deposit to agent wallets or your Polymarket funder. Signing runs server-side — keys never reach the browser."
+    >
+      {err && (
+        <p className="rounded-lg border border-edge-no/30 bg-edge-no/10 px-3 py-2 text-sm text-rose-200">
+          Could not load fleet: {err}
+        </p>
+      )}
 
-      {err && <p className="mt-4 text-rose-400 text-sm">Could not load fleet: {err}</p>}
-
-      <div className="mt-6 space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
-        <label className="block text-sm text-zinc-300">
-          Destination token / chain
-          <select
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-            value={presetId}
-            onChange={(e) => setPresetId(e.target.value)}
-          >
+      <div className="card-terminal mx-auto max-w-xl space-y-4">
+        <label className="block">
+          <span className="label">Destination token / chain</span>
+          <select className="input" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
             {PRESETS.map((p) => (
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </select>
         </label>
 
-        <label className="block text-sm text-zinc-300">
-          Agent (deposit destination)
-          <select
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-          >
+        <label className="block">
+          <span className="label">Agent (deposit destination)</span>
+          <select className="input" value={selected} onChange={(e) => setSelected(e.target.value)}>
             {fleet.length === 0 && <option value="">No agents found</option>}
             {fleet.map((a) => (
               <option key={a.address} value={a.address}>
@@ -96,23 +75,25 @@ export default function DepositPage() {
           </select>
         </label>
 
-        <label className="block text-sm text-zinc-300">
-          …or custom address (e.g. your Polymarket funder)
+        <label className="block">
+          <span className="label">Custom address (optional)</span>
           <input
-            placeholder="0x…"
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-zinc-100"
+            placeholder="0x… e.g. Polymarket funder"
+            className="input font-mono"
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
           />
-          {custom && !customValid && <span className="text-rose-400 text-xs">not a valid 0x address</span>}
+          {custom && !customValid && (
+            <span className="mt-1 block text-xs text-rose-300">Enter a valid 0x address</span>
+          )}
         </label>
 
-        <label className="block text-sm text-zinc-300">
-          Amount (USDC)
+        <label className="block">
+          <span className="label">Amount (USDC)</span>
           <input
             type="number"
             min={1}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+            className="input"
             value={amount}
             onChange={(e) => setAmount(Math.max(1, Number(e.target.value)))}
           />
@@ -127,16 +108,19 @@ export default function DepositPage() {
             onDeposited={(id) => setLastTransfer(id)}
           />
         ) : (
-          <p className="text-sm text-zinc-500">Select an agent or enter a destination address.</p>
+          <p className="text-sm text-white/45">Select an agent or enter a destination address.</p>
         )}
 
-        {lastTransfer && <p className="text-emerald-300 text-sm">Transfer started: {lastTransfer}</p>}
+        {lastTransfer && (
+          <p className="text-sm text-emerald-300">Transfer started: {lastTransfer}</p>
+        )}
       </div>
 
-      <p className="mt-4 text-xs text-zinc-500">
-        Funds land as {preset.label} at {destination ? `${destination.slice(0, 10)}…` : 'the chosen address'}.
-        Polygon · USDC.e funds Polymarket trading directly; Base · USDC funds the agent economy (bridge to Arc).
+      <p className="mx-auto max-w-xl text-xs text-white/40">
+        Funds arrive as {preset.label} at{' '}
+        {destination ? `${destination.slice(0, 10)}…` : 'the chosen address'}.
+        Polygon USDC.e funds Polymarket directly; Base USDC funds the agent economy on Arc.
       </p>
-    </main>
+    </AdvancedLayout>
   );
 }

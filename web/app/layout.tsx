@@ -1,20 +1,20 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Nav } from '@/components/Nav';
+import { ChatShell } from '@/components/ChatShell';
 import { UserWalletProvider } from '@/components/UserWallet';
+import { display, mono, sans } from '@/lib/fonts';
 
 export const metadata: Metadata = {
-  title: 'Honeybee — long-tail research agents on Arc',
-  description: 'Hire autonomous agents to research prediction markets. You stay in control of your funds.',
+  title: 'Honeybee — research agents for prediction markets',
+  description: 'Hire agents to research niche markets. You keep custody and approve every trade.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen">
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+      <body className="font-sans antialiased">
         <UserWalletProvider>
-          <Nav />
-          <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+          <ChatShell>{children}</ChatShell>
         </UserWalletProvider>
       </body>
     </html>

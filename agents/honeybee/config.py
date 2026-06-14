@@ -47,6 +47,8 @@ class Config:
     # Runtime
     dry_run: bool = _env_bool("DRY_RUN", True)
     loop_interval_sec: int = _env_int("LOOP_INTERVAL_SEC", 60)
+    discovery_top_n: int = _env_int("DISCOVERY_TOP_N", 5)
+    discovery_max_book_fetches: int = _env_int("DISCOVERY_MAX_BOOK_FETCHES", 15)
     log_level: str = _env("LOG_LEVEL", "INFO")
     bankroll_usd: float = _env_float("BANKROLL_USD", 1000.0)
 

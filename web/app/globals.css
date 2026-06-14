@@ -2,27 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: light;
+}
 
-html, body { background: #0d0f12; color: #e6e9ee; }
+html,
+body {
+  background: #fafaf9;
+  color: #171717;
+}
 
 @layer components {
   .card {
-    @apply rounded-xl border border-white/10 bg-ink-800/60 p-5 shadow-lg shadow-black/30;
+    @apply rounded-xl border border-ink/10 bg-surface-panel p-5 shadow-sm shadow-black/[0.04];
   }
+
+  .card-terminal {
+    @apply card bg-surface-sidebar;
+  }
+
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium
-           transition focus:outline-none focus:ring-2 focus:ring-honey-400/60 disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium
+           transition focus:outline-none focus-visible:ring-2 focus-visible:ring-agent/40
+           disabled:pointer-events-none disabled:opacity-50;
   }
-  .btn-primary { @apply btn bg-honey-500 text-ink-900 hover:bg-honey-400; }
-  .btn-ghost   { @apply btn bg-white/5 text-white hover:bg-white/10; }
+
+  .btn-primary {
+    @apply btn bg-gold text-midnight hover:bg-gold-light;
+  }
+
+  .btn-ghost {
+    @apply btn border border-ink/10 bg-surface-panel text-ink hover:bg-surface-sidebar;
+  }
+
+  .btn-memo {
+    @apply btn bg-memo-ink text-memo hover:bg-black;
+  }
+
   .input {
-    @apply w-full rounded-lg border border-white/10 bg-ink-900 px-3 py-2 text-sm
-           focus:border-honey-400 focus:outline-none focus:ring-1 focus:ring-honey-400;
+    @apply w-full rounded-lg border border-ink/10 bg-white px-3 py-2.5 text-sm text-ink
+           placeholder:text-ink-faint focus:border-agent/40 focus:outline-none focus:ring-1 focus:ring-agent/30;
   }
-  .label { @apply mb-1 block text-xs font-medium uppercase tracking-wider text-white/60; }
-  .pill  { @apply inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-xs; }
-  .pill-good { @apply pill bg-emerald-500/15 text-emerald-300; }
-  .pill-warn { @apply pill bg-amber-500/15 text-amber-300; }
-  .pill-bad  { @apply pill bg-rose-500/15 text-rose-300; }
+
+  .chat-input {
+    @apply w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm text-ink
+           placeholder:text-ink-faint focus:border-agent/40 focus:outline-none focus:ring-1 focus:ring-agent/20;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-muted;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .pill-good {
+    @apply pill bg-edge-yes/15 text-edge-yes;
+  }
+
+  .pill-warn {
+    @apply pill bg-amber-500/15 text-amber-700;
+  }
+
+  .pill-bad {
+    @apply pill bg-edge-no/15 text-edge-no;
+  }
+
+  .memo-panel {
+    @apply rounded-xl border border-memo-ink/10 bg-memo p-5 text-memo-ink shadow-memo;
+  }
+
+  .memo-animate {
+    @apply animate-memoIn;
+  }
+
+  .chat-main {
+    @apply bg-surface text-ink;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .memo-animate {
+      animation: none;
+    }
+  }
 }

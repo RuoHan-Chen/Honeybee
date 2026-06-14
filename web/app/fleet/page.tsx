@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { AdvancedLayout } from '@/components/AdvancedLayout';
 import { walletApi, type FleetAgent, type Activity } from '@/lib/api';
 import { balancesFor } from '@/lib/arc';
 
@@ -14,7 +15,7 @@ function kindBadge(kind: Activity['kind']): { label: string; color: string } {
     case 'x402.paid':     return { label: 'PAID',    color: 'bg-emerald-500/15 text-emerald-300' };
     case 'x402.verified': return { label: 'SERVED',  color: 'bg-emerald-500/15 text-emerald-300' };
     case 'attestation':   return { label: 'ATTEST',  color: 'bg-sky-500/15 text-sky-300' };
-    case 'agent.action':  return { label: 'AGENT',   color: 'bg-honey-500/15 text-honey-300' };
+    case 'agent.action':  return { label: 'AGENT',   color: 'bg-gold/15 text-gold-light' };
   }
 }
 
@@ -80,17 +81,11 @@ export default function FleetPage() {
   }, [fleet.length]);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Agent Fleet</h1>
-        <p className="mt-1 text-sm text-white/60">
-          Live view of the on-chain agent economy. Each agent has a Privy-managed wallet
-          on Arc, an ENS-shaped identity, and a policy-enforced spending cap. The activity
-          feed shows their autonomous payments + attestations in real time.
-        </p>
-      </div>
-
-      {err && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{err}</p>}
+    <AdvancedLayout
+      title="Agent fleet"
+      description="Live view of on-chain agent wallets on Arc — identities, balances, and autonomous x402 payments plus attestations."
+    >
+      {err && <p className="rounded-lg border border-edge-no/30 bg-edge-no/10 px-3 py-2 text-sm text-rose-200">{err}</p>}
 
       <section className="grid gap-4 md:grid-cols-3">
         {fleet.map((a) => <AgentCard key={a.label} a={a} />)}
@@ -99,9 +94,9 @@ export default function FleetPage() {
         )}
       </section>
 
-      <section className="card">
+      <section className="card-terminal">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-white/60">Live activity</h2>
+          <h2 className="text-xs font-medium uppercase tracking-widest text-white/40">Live activity</h2>
           <div className="flex items-center gap-2 text-xs text-white/40">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
             streaming from {walletApi.baseUrl}
@@ -127,7 +122,7 @@ export default function FleetPage() {
                   {tx && (
                     explorer
                       ? <a href={explorer} target="_blank" rel="noopener noreferrer"
-                          className="font-mono text-[10px] text-honey-400 hover:underline">{tx}</a>
+                          className="font-mono text-[10px] text-gold hover:underline">{tx}</a>
                       : <span className="font-mono text-[10px] text-white/40">{tx}</span>
                   )}
                 </li>
@@ -136,14 +131,14 @@ export default function FleetPage() {
           </ol>
         )}
       </section>
-    </div>
+    </AdvancedLayout>
   );
 }
 
 function AgentCard({ a }: { a: AgentWithBal }) {
   const ensName = a.ens?.name ?? `${a.label}.honeybee.agent`;
   return (
-    <div className="card">
+    <div className="card-terminal">
       <div className="flex items-start justify-between">
         <div>
           <div className="font-semibold">{a.label}</div>
@@ -152,7 +147,7 @@ function AgentCard({ a }: { a: AgentWithBal }) {
               href={a.ens.explorer}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-xs text-honey-400 hover:underline"
+              className="font-mono text-xs text-gold hover:underline"
               title={a.ens.verified
                 ? `Resolves on Sepolia L1 → ${a.ens.resolvedAddress}`
                 : `Not yet resolving on Sepolia L1 (resolved=${a.ens.resolvedAddress ?? 'null'})`}
@@ -160,7 +155,7 @@ function AgentCard({ a }: { a: AgentWithBal }) {
               {ensName}
             </a>
           ) : (
-            <div className="font-mono text-xs text-honey-400">{ensName}</div>
+            <div className="font-mono text-xs text-gold">{ensName}</div>
           )}
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -196,7 +191,7 @@ function AgentCard({ a }: { a: AgentWithBal }) {
       <div className="mt-3 space-y-0.5 text-[10px] text-white/40">
         <div>privy <span className="font-mono">{a.privyWalletId.slice(0, 8)}…</span></div>
         <div>addr  <a href={a.explorer?.address ?? '#'} target="_blank" rel="noopener noreferrer"
-          className="font-mono text-honey-400 hover:underline">{a.address.slice(0, 10)}…{a.address.slice(-6)}</a></div>
+          className="font-mono text-gold hover:underline">{a.address.slice(0, 10)}…{a.address.slice(-6)}</a></div>
         <div>model <span className="font-mono">{a.model}</span></div>
       </div>
     </div>
