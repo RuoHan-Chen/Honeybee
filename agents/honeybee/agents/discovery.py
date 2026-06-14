@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import bisect
 import logging
+import re
 import math
 from collections import defaultdict
 from dataclasses import dataclass
@@ -122,7 +123,18 @@ class DiscoveryAgent:
             sm.score = self._score(sm, hours_left=self._hours_left(sm.market, now), vol_pctile=pctile)
 
         candidates.sort(key=lambda x: x.score, reverse=True)
-        return candidates[:top_n]
+        # De-dupe by series (drop the trailing strike/threshold segment) so one
+        # event's many contract variants — e.g. "vote % >= 25/50/…" on the same
+        # election — don't crowd out variety. Keep the highest-scored per series.
+        seen_series: set[str] = set()
+        deduped: list[ScoredMarket] = []
+        for sm in candidates:
+            key = re.split(r"-\d", str(sm.market.market_id))[0]  # event-level (drop strike/sub-market)
+            if key in seen_series:
+                continue
+            seen_series.add(key)
+            deduped.append(sm)
+        return deduped[:top_n]
 
     async def _enrich_books(self, scored: list[ScoredMarket]) -> None:
         sem = asyncio.Semaphore(self.book_concurrency)

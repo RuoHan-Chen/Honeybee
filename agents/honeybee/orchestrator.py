@@ -46,10 +46,14 @@ class Orchestrator:
     def __init__(self) -> None:
         self.ledger = Ledger()
         self.llm = LLMRouter()
-        self.venues = [PolymarketAdapter(), KalshiAdapter(), GeminiAdapter()]
+        # Kalshi demo (sandbox) → trade fully on Kalshi: one venue, and relax the
+        # long-tail filters since demo markets are thin. Otherwise scan all venues.
+        kalshi_demo = "demo.kalshi" in (CONFIG.kalshi_api_url or "")
+        self.venues = [KalshiAdapter()] if kalshi_demo else [PolymarketAdapter(), KalshiAdapter(), GeminiAdapter()]
         self.discovery = DiscoveryAgent(
             self.venues,
             max_book_fetches=CONFIG.discovery_max_book_fetches,
+            **({"min_volume": 0.0, "min_uncertainty": 0.0} if kalshi_demo else {}),
         )
         self.data_agent = DataAgent()
         self.research = ResearchAgent(self.llm)

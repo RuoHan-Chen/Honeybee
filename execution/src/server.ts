@@ -383,16 +383,27 @@ app.post('/broker/submit', async (req, reply) => {
       rec: body.rec,
       maxSlippageBps: body.maxSlippageBps ?? 200,
     });
-    // Anchor trade attestation (fire-and-mirror).
-    const attest = await anchorTrade({
-      recId: fill.rec_id,
-      user: body.user,
-      marketId: fill.market_id,
-      side: fill.side,
-      price: fill.avg_price,
-      sizeUsd: fill.filled_usd,
-    });
-    return { fill, attestation: attest };
+    // Anchor trade attestation — best-effort. A failed attestation must NEVER
+    // discard a real fill. Sign as the agent's Privy wallet so it satisfies the
+    // registry's `msg.sender == addrOf(agentNode)` check (deployer-signed reverts
+    // with "not agent addr").
+    let attestation: unknown = null;
+    try {
+      const agent = findAgent(process.env.ENS_AGENT_LABEL ?? 'alpha-trader');
+      attestation = await anchorTrade({
+        recId: fill.rec_id,
+        ens: agent?.label,
+        fromWalletId: agent?.privyWalletId,
+        user: body.user,
+        marketId: fill.market_id,
+        side: fill.side,
+        price: fill.avg_price,
+        sizeUsd: fill.filled_usd,
+      });
+    } catch (e: any) {
+      app.log.warn({ err: e?.message }, 'trade attestation failed (fill still recorded)');
+    }
+    return { fill, attestation };
   } catch (err: any) {
     app.log.error({ err }, 'broker submit failed');
     reply.code(502);

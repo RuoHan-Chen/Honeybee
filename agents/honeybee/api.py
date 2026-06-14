@@ -279,6 +279,14 @@ async def _anchor(kind: str, body: dict[str, Any]) -> dict[str, Any]:
 
 async def _broker_submit(rec: dict[str, Any], creds: dict[str, Any], user: str) -> dict[str, Any]:
     """Hand off to the TS service to submit using user creds + anchor trade."""
+    # Autonomous/demo path: with no creds + a Kalshi rec, use the env Kalshi
+    # (demo) creds so the agent places a REAL signed order, not a paper fallback.
+    if not creds and rec.get("venue") == "kalshi" and CONFIG.kalshi_api_key_id:
+        try:
+            with open(CONFIG.kalshi_private_key_path) as f:
+                creds = {"apiKeyId": CONFIG.kalshi_api_key_id, "privateKeyPem": f.read()}
+        except Exception as e:
+            log.warning("kalshi demo creds load failed: %s", e)
     try:
         async with httpx.AsyncClient(timeout=30) as h:
             r = await h.post(

@@ -22,7 +22,6 @@ export default function DepositPage() {
   const [fleet, setFleet] = useState<FleetAgent[]>([]);
   const [selected, setSelected] = useState<string>('');
   const [presetId, setPresetId] = useState<string>(PRESETS[0].id);
-  const [custom, setCustom] = useState<string>('');
   const [amount, setAmount] = useState<number>(5);
   const [err, setErr] = useState<string | null>(null);
   const [lastTransfer, setLastTransfer] = useState<string | null>(null);
@@ -39,13 +38,12 @@ export default function DepositPage() {
 
   const agent = fleet.find((a) => a.address === selected);
   const preset = PRESETS.find((p) => p.id === presetId)!;
-  const customValid = /^0x[a-fA-F0-9]{40}$/.test(custom.trim());
-  const destination = (customValid ? custom.trim() : agent?.address) as `0x${string}` | undefined;
+  const destination = agent?.address as `0x${string}` | undefined;
 
   return (
     <AdvancedLayout
       title="Fund via Blink"
-      description="One-tap USDC deposit to agent wallets or your Polymarket funder. Signing runs server-side — keys never reach the browser."
+      description="One-tap USDC deposit to agent wallets or your Polymarket funder."
     >
       {err && (
         <p className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white">
@@ -53,7 +51,7 @@ export default function DepositPage() {
         </p>
       )}
 
-      <div className="card-terminal mx-auto max-w-xl space-y-4">
+      <div className="card-terminal mx-auto max-w-xl space-y-7 p-8">
         <label className="block">
           <span className="label">Destination token / chain</span>
           <select className="input" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
@@ -76,19 +74,6 @@ export default function DepositPage() {
         </label>
 
         <label className="block">
-          <span className="label">Custom address (optional)</span>
-          <input
-            placeholder="0x… e.g. Polymarket funder"
-            className="input font-mono"
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-          />
-          {custom && !customValid && (
-            <span className="mt-1 block text-xs text-rose-300">Enter a valid 0x address</span>
-          )}
-        </label>
-
-        <label className="block">
           <span className="label">Amount (USDC)</span>
           <input
             type="number"
@@ -108,7 +93,7 @@ export default function DepositPage() {
             onDeposited={(id) => setLastTransfer(id)}
           />
         ) : (
-          <p className="text-sm text-white/45">Select an agent or enter a destination address.</p>
+          <p className="text-sm text-ink-muted">Select an agent.</p>
         )}
 
         {lastTransfer && (

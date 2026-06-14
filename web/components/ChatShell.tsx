@@ -47,6 +47,7 @@ const railLinks = [
   { href: '/', label: 'Chat', icon: '⌂' },
   { href: '/marketplace', label: 'Hire', icon: '⊞' },
   { href: '/fleet', label: 'Fleet', icon: '⬢' },
+  { href: '/deposit', label: 'Fund', icon: '$' },
   { href: '/inbox', label: 'Inbox', icon: '☰' },
   { href: '/settings', label: 'Settings', icon: '⚙' },
 ];
