@@ -33,6 +33,10 @@ log = logging.getLogger(__name__)
 PROD_API_URL = "https://api.elections.kalshi.com/trade-api/v2"
 MAX_EVENT_PAGES = 12
 
+# Niche series always pulled into discovery (override via KALSHI_SERIES), so
+# long-tail markets like chess aren't buried behind the firehose depth/ordering.
+DEFAULT_KALSHI_SERIES = "KXCHESSWORLDCHAMPION,KXCHESSGRANDTOUR,KXCHESSTOURNAMENT,KXCHESSOLYMPIAD"
+
 
 def _to_float(x: object) -> float | None:
     try:
@@ -60,11 +64,27 @@ class KalshiAdapter:
     async def list_markets(self, *, limit: int = 500) -> list[Market]:
         """Pull tradeable markets via the public Events API (nested markets).
 
-        Skips inactive markets (empty 0/1 books that clog the feed head) and
-        pages until `limit` tradeable markets are collected.
+        Two sources, deduped by ticker:
+          1. Watchlist — configured niche series (chess by default) pulled
+             directly by series_ticker, so they always surface regardless of depth.
+          2. Firehose — the open-events feed, skipping MVE parlay noise and
+             inactive (empty 0/1 book) markets, paged until `limit` is reached.
         """
-        url = f"{self.base}/events"
         out: list[Market] = []
+        seen: set[str] = set()
+
+        # 1. Watchlist series — always included.
+        watch = [s.strip() for s in os.getenv("KALSHI_SERIES", DEFAULT_KALSHI_SERIES).split(",") if s.strip()]
+        for series in watch:
+            if len(out) >= limit:
+                break
+            for m in await self._series_markets(series):
+                if m.id not in seen and len(out) < limit:
+                    seen.add(m.id)
+                    out.append(m)
+
+        # 2. Firehose.
+        url = f"{self.base}/events"
         cursor: str | None = None
         pages = 0
 
@@ -95,7 +115,8 @@ class KalshiAdapter:
                     if not self._is_active(m):
                         continue
                     parsed = self._parse(m, ev)
-                    if parsed is not None:
+                    if parsed is not None and parsed.id not in seen:
+                        seen.add(parsed.id)
                         out.append(parsed)
                     if len(out) >= limit:
                         break
@@ -106,6 +127,30 @@ class KalshiAdapter:
             if not cursor:
                 break
         return out[:limit]
+
+    async def _series_markets(self, series_ticker: str) -> list[Market]:
+        """All open markets under one Kalshi series (the watchlist path).
+
+        No activity gate — niche markets are often thin; discovery's own filter
+        decides what's tradeable.
+        """
+        try:
+            r = await self.http.get(
+                f"{self.base}/events",
+                params={"series_ticker": series_ticker, "status": "open", "with_nested_markets": "true"},
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            log.debug("kalshi series %s failed: %s", series_ticker, e)
+            return []
+        out: list[Market] = []
+        for ev in data.get("events", []):
+            for m in ev.get("markets", []):
+                parsed = self._parse(m, ev)
+                if parsed is not None:
+                    out.append(parsed)
+        return out
 
     @staticmethod
     def _is_active(m: dict) -> bool:

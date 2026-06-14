@@ -62,7 +62,8 @@ async def test_get_best_prices_synthesizes_ask_from_no_bids():
     assert ask == pytest.approx(0.55, abs=1e-6)       # 1 - best NO bid (synthesized)
 
 
-async def test_list_markets_skips_mve_and_inactive():
+async def test_list_markets_skips_mve_and_inactive(monkeypatch):
+    monkeypatch.setenv("KALSHI_SERIES", "")   # firehose-only: isolate this test
     events = {"events": [
         # MVE parlay event — must be skipped wholesale even though its market is "active".
         {"event_ticker": "KXMVESPORTS-1", "category": "Sports", "markets": [
@@ -77,3 +78,23 @@ async def test_list_markets_skips_mve_and_inactive():
     ], "cursor": None}
     ms = await KalshiAdapter(http=_Http(events)).list_markets(limit=50)
     assert {m.id for m in ms} == {"live-mkt"}   # MVE + inactive dropped
+
+
+async def test_watchlist_pulls_configured_series(monkeypatch):
+    monkeypatch.setenv("KALSHI_SERIES", "KXCHESSWORLDCHAMPION")
+    chess = {"events": [{
+        "event_ticker": "KXCHESSWORLDCHAMPION", "title": "FIDE World Chess Championship 2026 Winner",
+        "category": "Sports", "series_ticker": "KXCHESSWORLDCHAMPION", "markets": [
+            {"ticker": "KXCHESSWORLDCHAMPION-GDOM", "yes_bid_dollars": "0.33", "yes_ask_dollars": "0.34",
+             "volume_24h_fp": "1325", "open_interest_fp": "75000", "close_time": "2030-01-01T00:00:00Z",
+             "yes_sub_title": "Gukesh"}]}]}
+
+    class _Route:
+        async def get(self, url, params=None):
+            if (params or {}).get("series_ticker"):
+                return _Resp(chess)            # watchlist hit
+            return _Resp({"events": [], "cursor": None})  # firehose empty
+        async def aclose(self): return None
+
+    ms = await KalshiAdapter(http=_Route()).list_markets(limit=50)
+    assert any(m.id == "KXCHESSWORLDCHAMPION-GDOM" for m in ms)   # surfaced via watchlist
