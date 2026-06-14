@@ -17,6 +17,7 @@ Notes from the live API:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 
 import httpx
@@ -26,7 +27,10 @@ from .polymarket import _infer_vertical
 
 log = logging.getLogger(__name__)
 
-API_URL = "https://api.elections.kalshi.com/trade-api/v2"   # public reads
+# Default to production for reads (richest market set). Set KALSHI_API_URL to the
+# demo sandbox (https://external-api.demo.kalshi.co/trade-api/v2) to run the
+# Kalshi demo flow end-to-end — reads + execution on the same env so tickers match.
+PROD_API_URL = "https://api.elections.kalshi.com/trade-api/v2"
 MAX_EVENT_PAGES = 12
 
 
@@ -50,6 +54,8 @@ class KalshiAdapter:
 
     def __init__(self, http: httpx.AsyncClient | None = None) -> None:
         self.http = http or httpx.AsyncClient(timeout=20.0)
+        # demo (testnet) vs prod (mainnet) — drives the Kalshi flow's network.
+        self.base = os.getenv("KALSHI_API_URL", PROD_API_URL).rstrip("/")
 
     async def list_markets(self, *, limit: int = 500) -> list[Market]:
         """Pull tradeable markets via the public Events API (nested markets).
@@ -57,7 +63,7 @@ class KalshiAdapter:
         Skips inactive markets (empty 0/1 books that clog the feed head) and
         pages until `limit` tradeable markets are collected.
         """
-        url = f"{API_URL}/events"
+        url = f"{self.base}/events"
         out: list[Market] = []
         cursor: str | None = None
         pages = 0
@@ -172,7 +178,7 @@ class KalshiAdapter:
         NO bids (YES ask price = 1 - NO bid price).
         """
         try:
-            r = await self.http.get(f"{API_URL}/markets/{market_id}/orderbook")
+            r = await self.http.get(f"{self.base}/markets/{market_id}/orderbook")
             r.raise_for_status()
             data = r.json()
         except Exception as e:
