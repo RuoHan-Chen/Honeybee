@@ -9,7 +9,14 @@ from dotenv import load_dotenv
 
 # Load .env from repo root (walk up from this file)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(_REPO_ROOT / ".env")
+load_dotenv(_REPO_ROOT / ".env", override=True)
+
+# If .env set *_BASE_URL to empty, treat that as "use SDK default" by removing
+# the env var entirely (otherwise inherited shell values can leak into SDK
+# clients that read os.environ directly).
+for _k in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL"):
+    if os.environ.get(_k, "").strip() == "":
+        os.environ.pop(_k, None)
 
 
 def _env(key: str, default: str = "") -> str:
@@ -57,6 +64,10 @@ class Config:
     perplexity_api_key: str = _env("PERPLEXITY_API_KEY")
     llm_cheap_model: str = _env("LLM_CHEAP_MODEL", "gpt-4o-mini")
     llm_strong_model: str = _env("LLM_STRONG_MODEL", "claude-sonnet-4-5")
+    # Base URLs — leave blank to use each SDK's default (api.anthropic.com /
+    # api.openai.com). Set explicitly to route through a gateway/proxy.
+    anthropic_base_url: str = _env("ANTHROPIC_BASE_URL")
+    openai_base_url: str = _env("OPENAI_BASE_URL")
 
     # Venues
     polymarket_gamma_url: str = _env("POLYMARKET_GAMMA_URL", "https://gamma-api.polymarket.com")

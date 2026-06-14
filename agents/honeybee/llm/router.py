@@ -45,13 +45,21 @@ class LLMRouter:
         if CONFIG.has_anthropic:
             try:
                 from anthropic import AsyncAnthropic
-                self._anthropic = AsyncAnthropic(api_key=CONFIG.anthropic_api_key)
+                kwargs: dict[str, Any] = {"api_key": CONFIG.anthropic_api_key}
+                if CONFIG.anthropic_base_url:
+                    kwargs["base_url"] = CONFIG.anthropic_base_url
+                self._anthropic = AsyncAnthropic(**kwargs)
+                log.info("anthropic client → %s", CONFIG.anthropic_base_url or "api.anthropic.com (default)")
             except Exception as e:
                 log.warning("anthropic client init failed: %s", e)
         if CONFIG.has_openai:
             try:
                 from openai import AsyncOpenAI
-                self._openai = AsyncOpenAI(api_key=CONFIG.openai_api_key)
+                kwargs: dict[str, Any] = {"api_key": CONFIG.openai_api_key}
+                if CONFIG.openai_base_url:
+                    kwargs["base_url"] = CONFIG.openai_base_url
+                self._openai = AsyncOpenAI(**kwargs)
+                log.info("openai client → %s", CONFIG.openai_base_url or "api.openai.com (default)")
             except Exception as e:
                 log.warning("openai client init failed: %s", e)
 
@@ -66,11 +74,12 @@ class LLMRouter:
         return (self._spent_this_loop + est_cost) <= CONFIG.max_usd_per_loop
 
     async def cheap(self, system: str, user: str, *, max_tokens: int = 300) -> LLMResponse:
-        # Prefer OpenAI gpt-4o-mini for cheap tier when available.
-        if self._openai and self._can_spend(0.001):
-            return await self._call_openai(system, user, CONFIG.llm_cheap_model, max_tokens)
+        # Prefer Anthropic Haiku for cheap tier when available; fall back to
+        # OpenAI gpt-4o-mini; fall back to mock.
         if self._anthropic and self._can_spend(0.001):
             return await self._call_anthropic(system, user, "claude-haiku-4-5", max_tokens)
+        if self._openai and self._can_spend(0.001):
+            return await self._call_openai(system, user, CONFIG.llm_cheap_model, max_tokens)
         return self._mock(system, user, model="mock-cheap")
 
     async def strong(self, system: str, user: str, *, max_tokens: int = 800) -> LLMResponse:

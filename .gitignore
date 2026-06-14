@@ -26,3 +26,9 @@ var/
 .DS_Store
 .idea/
 .vscode/
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/

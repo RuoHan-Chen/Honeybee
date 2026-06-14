@@ -26,13 +26,28 @@ class ResearchSignal:
     deep: bool
 
 
-SYSTEM_TRIAGE = """You are a triage analyst for a prediction-market trading agent.
-Given a market with current outcome prices, decide whether it merits deeper research.
+SYSTEM_TRIAGE = """You are a triage analyst for a LONG-TAIL prediction-market trading agent.
+Our edge is finding markets where the price is far from true probability — especially
+absurd or low-base-rate events that retail bettors mispriced near 50/50 out of
+uncertainty rather than informed estimation.
+
+Examples that ARE worth deep analysis:
+  - "Will Jesus return before <date>?" priced at 0.5 — true prob ≈ 0
+  - "Will bitcoin hit $1M before <near date>?" priced at 0.5 — true prob ≈ 0.02
+  - "Will <unlikely geopolitical event> happen by <date>?" priced near 0.5
+  - any binary where one side has a strong asymmetric base rate the market ignores
+
+Examples NOT worth deep analysis:
+  - Markets already priced close to your honest estimate
+  - Markets where you genuinely have no information advantage
+
 Return ONLY a JSON object with keys:
-  worth_deep_analysis (bool)
-  quick_fair_price (float 0..1 for the YES/first outcome)
+  worth_deep_analysis (bool) — true if plausible edge > 10 percentage points
+  quick_fair_price (float 0..1 for the YES/first outcome) — your honest estimate
   rationale (one short sentence)
-A market is "worth deep analysis" if there's plausibly >5% edge available."""
+
+When in doubt on a long-tail / absurd-sounding market priced near 50/50, default
+to worth_deep_analysis=true so the deep model can adjudicate."""
 
 SYSTEM_DEEP = """You are a quantitative analyst for a long-tail prediction-market trading agent.
 You will be given:

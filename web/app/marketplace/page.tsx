@@ -4,6 +4,12 @@ import Link from 'next/link';
 import { api, Agent, MarketCandidate, Recommendation } from '@/lib/api';
 import { useUser } from '@/components/UserWallet';
 
+/** Safe `.toFixed` for values that might be undefined/null (e.g. backend
+ *  returned a partial recommendation or an error envelope). */
+function fmt(n: number | null | undefined, digits: number): string {
+  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(digits) : '—';
+}
+
 const HOUSE_AGENT: Agent = {
   ens: 'house.honeybee.agent.eth',
   label: 'House',
@@ -44,6 +50,13 @@ export default function Marketplace() {
         market_id: market.market_id,
         price_usd: 0.05,
       });
+      // The backend returns either a full Recommendation or {error: "..."}.
+      // Without a real recommendation we have no fair_price etc. to render.
+      const errMsg = (r as unknown as { error?: string })?.error;
+      if (errMsg || typeof r?.fair_price !== 'number') {
+        setErr(errMsg ?? 'Agent returned no recommendation (no edge / low confidence).');
+        return;
+      }
       setResult(r);
     } catch (e: any) {
       setErr(e.message);
@@ -106,9 +119,18 @@ export default function Marketplace() {
             <div className="grid gap-1 text-xs text-white/80">
               <div><b>{result.market_question}</b></div>
               <div>Outcome: <b>{result.outcome}</b> · side {result.side}</div>
-              <div>Fair {result.fair_price.toFixed(3)} · Mkt {result.market_price.toFixed(3)} · edge <b className={result.edge >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{result.edge >= 0 ? '+' : ''}{result.edge.toFixed(3)}</b></div>
-              <div>Confidence {(result.confidence * 100).toFixed(0)}% · suggested size ${result.suggested_size_usd.toFixed(2)}</div>
-              <div className="mt-1 font-mono text-[10px] text-white/40">research_hash {result.research_hash.slice(0, 18)}…</div>
+              <div>
+                Fair {fmt(result.fair_price, 3)} · Mkt {fmt(result.market_price, 3)} · edge{' '}
+                <b className={(result.edge ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                  {(result.edge ?? 0) >= 0 ? '+' : ''}{fmt(result.edge, 3)}
+                </b>
+              </div>
+              <div>
+                Confidence {fmt((result.confidence ?? 0) * 100, 0)}% · suggested size ${fmt(result.suggested_size_usd, 2)}
+              </div>
+              {result.research_hash && (
+                <div className="mt-1 font-mono text-[10px] text-white/40">research_hash {result.research_hash.slice(0, 18)}…</div>
+              )}
               {result.research_attestation_tx && (
                 <div className="font-mono text-[10px] text-white/40">attest tx {result.research_attestation_tx.slice(0, 18)}…</div>
               )}

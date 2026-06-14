@@ -9,14 +9,15 @@
     "build": "tsc -p execution/tsconfig.json"
   },
   "dependencies": {
-    "fastify": "^4.28.1",
+    "canonicalize": "^2.1.0",
     "dotenv": "^16.4.5",
-    "viem": "^2.21.0",
-    "undici": "^6.19.8"
+    "fastify": "^4.28.1",
+    "undici": "^6.19.8",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
+    "@types/node": "^22.5.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.5.4",
-    "@types/node": "^22.5.0"
+    "typescript": "^5.5.4"
   }
 }
