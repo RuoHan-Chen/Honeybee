@@ -9,12 +9,30 @@
  * The private key is read from the server env and never leaves the backend.
  */
 import { createSign, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MERCHANT_ID = process.env.BLINK_MERCHANT_ID ?? '';
-const PRIVATE_KEY_PEM = process.env.BLINK_MERCHANT_PRIVATE_KEY ?? '';
+
+/**
+ * Load the merchant PEM — from env contents (handles \n-escaped single-line
+ * values) or a file path (BLINK_MERCHANT_PRIVATE_KEY_PATH). Never from the request.
+ */
+function loadPrivateKey(): string {
+  const inline = process.env.BLINK_MERCHANT_PRIVATE_KEY;
+  if (inline && inline.includes('BEGIN')) return inline.replace(/\\n/g, '\n');
+  const path = process.env.BLINK_MERCHANT_PRIVATE_KEY_PATH;
+  if (path) {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch {
+      /* fall through to empty */
+    }
+  }
+  return '';
+}
 
 // Blink-supported destination (chainId -> token addresses, lowercased). Blink's
 // guide recommends allowlisting supported combos so you never sign an
@@ -74,8 +92,9 @@ function json(body: unknown, status = 200): Response {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const PRIVATE_KEY_PEM = loadPrivateKey();
   if (!MERCHANT_ID || !PRIVATE_KEY_PEM) {
-    return json({ error: 'Blink not configured: set BLINK_MERCHANT_ID + BLINK_MERCHANT_PRIVATE_KEY' }, 500);
+    return json({ error: 'Blink not configured: set BLINK_MERCHANT_ID + BLINK_MERCHANT_PRIVATE_KEY (or _PATH)' }, 500);
   }
 
   let body: Record<string, unknown>;
