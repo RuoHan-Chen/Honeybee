@@ -16,6 +16,21 @@ export const dynamic = 'force-dynamic';
 const MERCHANT_ID = process.env.BLINK_MERCHANT_ID ?? '';
 const PRIVATE_KEY_PEM = process.env.BLINK_MERCHANT_PRIVATE_KEY ?? '';
 
+// Blink-supported destination (chainId -> token addresses, lowercased). Blink's
+// guide recommends allowlisting supported combos so you never sign an
+// unroutable deposit. For production, query Blink's Chains API instead of pinning.
+const SUPPORTED: Record<number, Set<string>> = {
+  1: new Set(['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48']),                       // Ethereum USDC
+  56: new Set(['0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d']),                      // BSC USDC
+  137: new Set([
+    '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',                                   // Polygon USDC (native)
+    '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',                                   // Polygon USDC.e (Polymarket)
+    '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',                                   // Polygon USDT
+  ]),
+  8453: new Set(['0x833589fcd6edb6e08f4c7c32d4f71b54bda02913']),                    // Base USDC
+  42161: new Set(['0xaf88d065e77c8cc2239327c5edb3a432268e5831']),                   // Arbitrum USDC
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -51,6 +66,10 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (typeof token !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(token)) {
     return json({ error: 'Invalid token' }, 400);
+  }
+  const supported = SUPPORTED[chainId as number];
+  if (!supported || !supported.has(token.toLowerCase())) {
+    return json({ error: `Unsupported (chainId ${chainId}, token ${token}) for Blink` }, 400);
   }
 
   const payloadObject = {
