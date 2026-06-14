@@ -32,10 +32,11 @@ export async function usdcBalance(address: string): Promise<number> {
   return Number(BigInt(hex)) / 1e6;
 }
 
-export async function balancesFor(address: string): Promise<{ arc: number; usdc: number }> {
+export async function balancesFor(address: string): Promise<{ arcBalance: number; usdcBalance: number }> {
   const [arc, usdc] = await Promise.all([
     arcBalance(address).catch(() => 0),
     usdcBalance(address).catch(() => 0),
   ]);
-  return { arc, usdc };
+  // Keys must match the fleet card's a.arcBalance / a.usdcBalance.
+  return { arcBalance: arc, usdcBalance: usdc };
 }
