@@ -22,6 +22,7 @@ TOPIC_SOURCES: dict[str, list[str]] = {
     "sports.nba":   ["espn_scoreboard"],
     "sports.nfl":   ["espn_scoreboard"],
     "crypto.price": ["coingecko"],
+    "chess":        ["lichess_fide"],
     "default":      [],
 }
 
@@ -32,6 +33,10 @@ def _classify(m: Market) -> str:
         return "sports.nba"
     if any(k in text for k in ["nfl", "super bowl", "patriots", "chiefs", "eagles"]):
         return "sports.nfl"
+    if any(k in text for k in ["chess", "carlsen", "nakamura", "fide", "grandmaster",
+                               "candidates", "gukesh", "nepomniachtchi", "ding liren",
+                               "caruana", "firouzja", "world chess"]):
+        return "chess"
     if any(k in text for k in ["bitcoin", "btc", "ethereum", "eth", "solana", "sol"]):
         if any(k in text for k in ["price", "reach", "above", "below", "$"]):
             return "crypto.price"
@@ -110,6 +115,81 @@ async def _fetch_espn(m: Market, http: httpx.AsyncClient) -> DataSourceUse:
                              acquisition_method="free", datapoints={})
 
 
+_CHESS_STOP = {
+    "world", "chess", "championship", "championships", "fide", "candidates", "tournament",
+    "cup", "masters", "open", "grand", "prix", "tour", "will", "the", "win", "wins", "beat",
+    "champion", "grandmaster", "match", "final", "finals", "title", "norway", "global",
+    "league", "super", "united", "states", "olympiad", "blitz", "rapid", "classical",
+    "round", "game", "freestyle", "speed",
+}
+
+
+def _chess_candidate_names(question: str) -> list[str]:
+    """Pull likely player-name phrases (runs of capitalised words) from a question."""
+    names: list[str] = []
+    for run in re.findall(r"[A-Z][\w'\-]+(?:\s+[A-Z][\w'\-]+)*", question):
+        words = [w for w in run.split() if w.lower() not in _CHESS_STOP]
+        phrase = " ".join(words).strip()
+        if len(phrase) >= 3 and phrase not in names:
+            names.append(phrase)
+    return names[:4]
+
+
+async def _fetch_chess(m: Market, http: httpx.AsyncClient) -> DataSourceUse:
+    """FIDE ratings for the players named in a chess market (via Lichess's FIDE mirror).
+
+    Chess has a clean Elo -> win-probability model, so when two rated players are
+    found we attach an Elo-implied head-to-head probability as a fair-value anchor.
+    """
+    players: list[dict] = []
+    seen: set[int] = set()
+    for name in _chess_candidate_names(m.question):
+        try:
+            r = await http.get("https://lichess.org/api/fide/player", params={"q": name})
+            r.raise_for_status()
+            results = r.json()
+        except Exception as e:
+            log.debug("lichess fide search failed for %r: %s", name, e)
+            continue
+        if not isinstance(results, list) or not results:
+            continue
+        p = results[0]
+        if p.get("id") in seen or not p.get("standard"):
+            continue
+        seen.add(p.get("id"))
+        players.append({
+            "query": name, "name": p.get("name"), "fide_id": p.get("id"),
+            "title": p.get("title"), "federation": p.get("federation"),
+            "standard": p.get("standard"), "rapid": p.get("rapid"), "blitz": p.get("blitz"),
+        })
+
+    datapoints: dict = {"players": players}
+    note = ""
+    if len(players) >= 2:
+        ra, rb = float(players[0]["standard"]), float(players[1]["standard"])
+        p_a = 1.0 / (1.0 + 10 ** ((rb - ra) / 400.0))
+        datapoints["elo_head_to_head"] = {
+            players[0]["name"]: round(p_a, 4),
+            players[1]["name"]: round(1.0 - p_a, 4),
+            "formula": "1/(1+10^((Rb-Ra)/400)) on FIDE standard ratings",
+        }
+        note = (f"FIDE standard {players[0]['name']} {ra:.0f} vs {players[1]['name']} {rb:.0f}"
+                f" -> Elo win prob {p_a:.1%}")
+    elif players:
+        note = f"FIDE ratings for {', '.join(p['name'] for p in players)}"
+
+    return DataSourceUse(
+        source_name="lichess_fide",
+        source_url="https://lichess.org/api/fide/player",
+        source_type="free",
+        acquisition_method="free",
+        datapoints=datapoints,
+        cost_usd=0.0,
+        influenced_price=bool(players),
+        influenced_note=note,
+    )
+
+
 async def gather_data(market: Market, decision_id: str, repo: Repository) -> DataBundle:
     topic = _classify(market)
     sources_to_fetch = TOPIC_SOURCES.get(topic, TOPIC_SOURCES["default"])
@@ -123,6 +203,8 @@ async def gather_data(market: Market, decision_id: str, repo: Repository) -> Dat
                 use = await _fetch_coingecko(market, http)
             elif src == "espn_scoreboard":
                 use = await _fetch_espn(market, http)
+            elif src == "lichess_fide":
+                use = await _fetch_chess(market, http)
             else:
                 continue
 
