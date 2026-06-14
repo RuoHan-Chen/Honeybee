@@ -246,8 +246,14 @@ export async function anchorResolution(input: {
   recId: string;
   resolvedOutcome: string;
   pnlUsd: number;
+  /**
+   * Privy walletId of the agent that anchored the original Trade. The
+   * AttestationRegistry reads the agentNode from the stored Trade and
+   * requires msg.sender == addrOf(agentNode), so the resolution MUST come
+   * from the same agent's wallet.
+   */
+  fromWalletId?: string;
 }): Promise<AnchorResult> {
-  // Resolution doesn't take agentNode — the contract reads it from the stored Trade.
   return send({
     fn: 'attestResolution',
     params: [
@@ -255,6 +261,7 @@ export async function anchorResolution(input: {
       input.resolvedOutcome,
       BigInt(Math.round(input.pnlUsd * 1_000_000)),
     ],
+    fromWalletId: input.fromWalletId,
   });
 }
 

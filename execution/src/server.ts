@@ -237,17 +237,16 @@ function mockPrediction(agentLabel: string, marketId: string) {
   };
 }
 
-app.get('/agent/:label/signal', async (req, reply) => {
-  const { label } = req.params as { label: string };
+async function serveSignal(req: any, reply: any, agentRef: string) {
   const { market } = req.query as { market?: string };
   if (!market) {
     reply.code(400);
     return { error: 'market query param required' };
   }
-  const agent = findAgent(label);
+  const agent = findAgent(agentRef);
   if (!agent) {
     reply.code(404);
-    return { error: `unknown agent ${label}` };
+    return { error: `unknown agent ${agentRef}` };
   }
   const price = SIGNAL_PRICE_USDC[agent.label] ?? 0.002;
 
@@ -272,7 +271,22 @@ app.get('/agent/:label/signal', async (req, reply) => {
       };
     },
   });
-  return gated(req as any, reply as any);
+  return gated(req, reply);
+}
+
+// Two routes, one handler:
+//   /agent/:label/signal             — label-based (legacy, demo convenience)
+//   /agent/by-address/:addr/signal   — address-based (ENS-discovery path; the
+//                                      autonomous loop resolves a Sepolia ENS
+//                                      subname to addr, then calls this route)
+app.get('/agent/:label/signal', async (req, reply) => {
+  const { label } = req.params as { label: string };
+  return serveSignal(req, reply, label);
+});
+
+app.get('/agent/by-address/:addr/signal', async (req, reply) => {
+  const { addr } = req.params as { addr: string };
+  return serveSignal(req, reply, addr);
 });
 
 // ─── attestations (Arc testnet, mock fallback) ────────────────────────────
@@ -332,8 +346,20 @@ app.post('/attest/trade', async (req) => {
 });
 
 app.post('/attest/resolution', async (req) => {
-  const body = req.body as { recId: string; resolvedOutcome: string; pnlUsd: number };
-  return anchorResolution(body);
+  const body = req.body as {
+    recId: string;
+    resolvedOutcome: string;
+    pnlUsd: number;
+    /** ENS label of the agent that originally anchored the trade. */
+    ens?: string;
+    fromWalletId?: string;
+  };
+  let fromWalletId = body.fromWalletId;
+  if (!fromWalletId && body.ens) {
+    const agent = findAgent(body.ens);
+    if (agent) fromWalletId = agent.privyWalletId;
+  }
+  return anchorResolution({ ...body, fromWalletId });
 });
 
 // ─── broker: submit a trade USING USER'S credentials ──────────────────────
