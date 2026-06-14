@@ -48,7 +48,7 @@ export function BlinkDeposit({
     <div className="flex flex-col gap-2">
       <BlinkDepositButton onClick={handle} loading={status === 'signer-loading'} />
       {error && <p className="text-rose-400 text-sm">{displayMessage}</p>}
-      {status === 'completed' && <p className="text-emerald-300 text-sm">Deposit submitted ✓</p>}
+      {status === 'completed' && <p className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Deposit submitted ✓</p>}
     </div>
   );
 }

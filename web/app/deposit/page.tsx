@@ -48,7 +48,7 @@ export default function DepositPage() {
       description="One-tap USDC deposit to agent wallets or your Polymarket funder. Signing runs server-side — keys never reach the browser."
     >
       {err && (
-        <p className="rounded-lg border border-edge-no/30 bg-edge-no/10 px-3 py-2 text-sm text-rose-200">
+        <p className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white">
           Could not load fleet: {err}
         </p>
       )}
@@ -112,7 +112,7 @@ export default function DepositPage() {
         )}
 
         {lastTransfer && (
-          <p className="text-sm text-emerald-300">Transfer started: {lastTransfer}</p>
+          <p className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Transfer started: {lastTransfer}</p>
         )}
       </div>
 

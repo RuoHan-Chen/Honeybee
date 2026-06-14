@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { ChatShell } from '@/components/ChatShell';
 import { UserWalletProvider } from '@/components/UserWallet';
+import { AutoPilot } from '@/components/AutoPilot';
 import { display, mono, sans } from '@/lib/fonts';
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body className="font-sans antialiased">
         <UserWalletProvider>
+          <AutoPilot />
           <ChatShell>{children}</ChatShell>
         </UserWalletProvider>
       </body>

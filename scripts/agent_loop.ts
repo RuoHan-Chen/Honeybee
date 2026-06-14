@@ -262,7 +262,7 @@ async function tick(alphaAddress: `0x${string}`, alphaWalletId: string) {
   const edge = Math.abs(researchPayload.fair_yes - marketPrice);
   if (edge >= EDGE_THRESHOLD) {
     const side: 'BUY' | 'SELL' = researchPayload.fair_yes > marketPrice ? 'BUY' : 'SELL';
-    const sizeUsd = Number((0.50 + Math.random() * 1.50).toFixed(2)); // $0.50-$2.00 paper size
+    const sizeUsd = Number((5 + Math.random() * 20).toFixed(2)); // $5-$25 paper size
     const recId = randomUUID();
     try {
       const trade = await anchorTradeRemote({

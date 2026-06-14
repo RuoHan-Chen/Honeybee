@@ -5,10 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useUser } from './UserWallet';
+import { FundButton } from './FundButton';
 
 const links = [
   { href: '/', label: 'Home' },
   { href: '/marketplace', label: 'Hire' },
+  { href: '/fleet', label: 'Fleet' },
   { href: '/inbox', label: 'Inbox' },
   { href: '/settings', label: 'Settings' },
 ];
@@ -83,15 +85,18 @@ export function Nav() {
         </nav>
 
         {u.address ? (
-          <button
-            type="button"
-            onClick={u.disconnect}
-            title="Disconnect"
-            className="shrink-0 rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/[0.04]"
-          >
-            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-edge-yes" />
-            <span className="font-mono">{u.address.slice(0, 6)}…{u.address.slice(-4)}</span>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <FundButton />
+            <button
+              type="button"
+              onClick={u.disconnect}
+              title="Disconnect"
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/[0.04]"
+            >
+              <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-edge-yes" />
+              <span className="font-mono">{u.address.slice(0, 6)}…{u.address.slice(-4)}</span>
+            </button>
+          </div>
         ) : (
           <button type="button" className="btn-primary shrink-0 text-xs" onClick={() => u.connect()}>
             Connect wallet

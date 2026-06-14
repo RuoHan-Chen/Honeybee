@@ -137,7 +137,7 @@ function MarketplaceInner() {
               </div>
 
               {err && (
-                <p className="mt-3 rounded-lg border border-edge-no/30 bg-edge-no/10 px-3 py-2 text-sm text-rose-200">
+                <p className="mt-3 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white">
                   {err}
                 </p>
               )}
