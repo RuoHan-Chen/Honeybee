@@ -31,6 +31,41 @@ const SUPPORTED: Record<number, Set<string>> = {
   42161: new Set(['0xaf88d065e77c8cc2239327c5edb3a432268e5831']),                   // Arbitrum USDC
 };
 
+// Authoritative support comes from Blink's routing layer (Relay) Chains API at
+// runtime; the static table above is only used if that endpoint is unreachable.
+const RELAY_CHAINS_URL = 'https://api.relay.link/chains';
+const CHAINS_TTL_MS = 10 * 60_000;
+let chainsCache: { ts: number; chains: unknown[] } | null = null;
+
+async function getChains(): Promise<any[] | null> {
+  if (chainsCache && Date.now() - chainsCache.ts < CHAINS_TTL_MS) return chainsCache.chains as any[];
+  try {
+    const r = await fetch(RELAY_CHAINS_URL, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const chains = Array.isArray(data?.chains) ? data.chains : Array.isArray(data) ? data : null;
+    if (chains) chainsCache = { ts: Date.now(), chains };
+    return chains;
+  } catch {
+    return null;
+  }
+}
+
+/** Validate (chainId, token) against Relay's live routing catalog. */
+async function isSupported(chainId: number, token: string): Promise<boolean> {
+  const tokenLc = token.toLowerCase();
+  const chains = await getChains();
+  if (chains) {
+    const chain = chains.find((c: any) => c.id === chainId);
+    if (!chain) return false;
+    const listed = [chain.currency, ...(chain.erc20Currencies ?? [])].filter(Boolean);
+    const entry = listed.find((t: any) => (t.address ?? '').toLowerCase() === tokenLc);
+    if (entry) return entry.supportsBridging === true;   // listed token: must be bridgeable
+    return chain.tokenSupport === 'All';                 // unlisted on an open chain: routed by liquidity
+  }
+  return SUPPORTED[chainId]?.has(tokenLc) ?? false;       // Relay unreachable → static fallback
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -67,9 +102,8 @@ export async function POST(req: Request): Promise<Response> {
   if (typeof token !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(token)) {
     return json({ error: 'Invalid token' }, 400);
   }
-  const supported = SUPPORTED[chainId as number];
-  if (!supported || !supported.has(token.toLowerCase())) {
-    return json({ error: `Unsupported (chainId ${chainId}, token ${token}) for Blink` }, 400);
+  if (!(await isSupported(chainId as number, token))) {
+    return json({ error: `Unsupported (chainId ${chainId}, token ${token}) — not in Blink/Relay routing catalog` }, 400);
   }
 
   const payloadObject = {
