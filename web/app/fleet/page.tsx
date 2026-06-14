@@ -46,7 +46,7 @@ export default function FleetPage() {
         })));
         if (!cancelled) setFleet(withBal);
       })
-      .catch((e) => setErr(`fleet fetch failed: ${e.message}. Is the wallet service running on ${walletApi.baseUrl}?`));
+      .catch(() => setErr('Unable to reach the agent service — it may be offline.'));
     return () => { cancelled = true; };
   }, []);
 
@@ -109,7 +109,7 @@ export default function FleetPage() {
         </div>
         {activity.length === 0 ? (
           <p className="text-sm text-white/40">
-            No events yet. Start the autonomous loop with <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs">make agent-loop</code> in a separate terminal.
+            No activity yet.
           </p>
         ) : (
           <ol className="space-y-1.5">

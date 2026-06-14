@@ -22,7 +22,7 @@ export default function Dashboard() {
         ]);
         if (stop) return;
         setHealth(h); setMarkets(m); setRecs(r); setErr(null);
-      } catch (e: any) { if (!stop) setErr(e.message); }
+      } catch { if (!stop) setErr('offline'); }
     }
     load();
     const t = setInterval(load, 5000);
@@ -39,7 +39,7 @@ export default function Dashboard() {
               ? <>API <span className="pill-good">online</span> · mode{' '}
                   {health.dry_run ? <span className="pill-warn">PAPER</span> : <span className="pill-bad">LIVE</span>}{' '}
                   · exec <span className={u.mode === 'auto' ? 'pill-warn' : 'pill'}>{u.mode}</span></>
-              : err ? <span className="pill-bad">API unreachable — start <code>make api</code></span>
+              : err ? <span className="pill-bad">offline — can’t reach the server</span>
               : 'connecting…'}
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function Dashboard() {
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/60">Top candidate markets</h2>
           <div className="card space-y-3 p-4">
-            {markets.length === 0 && <div className="text-sm text-white/40">No discovery snapshot yet. Run <code>make demo</code>.</div>}
+            {markets.length === 0 && <div className="text-sm text-white/40">No markets to show yet.</div>}
             {markets.slice(0, 8).map((m) => (
               <div key={m.market_id} className="flex items-start justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0">

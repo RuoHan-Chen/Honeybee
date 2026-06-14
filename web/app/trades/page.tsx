@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { api, Recommendation } from '@/lib/api';
+import { api, niceError, Recommendation } from '@/lib/api';
 import { useUser } from '@/components/UserWallet';
 
 function TradesInner() {
@@ -19,7 +19,7 @@ function TradesInner() {
         limit: 100, ...(u.address ? { user_address: u.address } : {}),
       });
       setRecs(r);
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(niceError(e)); }
   }
   useEffect(() => { load(); }, [u.address]);
 
@@ -33,14 +33,14 @@ function TradesInner() {
         `trade attest tx ${res.attestation.tx_hash.slice(0, 12)}…`
       );
       await load();
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(niceError(e)); }
     finally { setBusy(null); }
   }
 
   async function reject(r: Recommendation) {
     setBusy(r.rec_id);
     try { await api.reject(r.rec_id); await load(); }
-    catch (e: any) { setErr(e.message); }
+    catch (e: any) { setErr(niceError(e)); }
     finally { setBusy(null); }
   }
 
