@@ -58,3 +58,10 @@ async def test_fetch_chess_single_player_no_h2h():
     ds = await _fetch_chess(_mkt("Will Magnus Carlsen win the title?"), _FideHttp())
     assert len(ds.datapoints["players"]) == 1
     assert "elo_head_to_head" not in ds.datapoints
+
+
+async def test_fetch_chess_no_known_players_is_empty():
+    # No player names (only filtered event words) -> no lookups, no influence.
+    ds = await _fetch_chess(_mkt("Will the FIDE event happen on schedule?"), _FideHttp())
+    assert ds.datapoints["players"] == []
+    assert ds.influenced_price is False

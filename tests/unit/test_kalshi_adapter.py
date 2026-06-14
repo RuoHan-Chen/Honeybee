@@ -60,3 +60,20 @@ async def test_get_best_prices_synthesizes_ask_from_no_bids():
     bid, ask = await KalshiAdapter(http=_Http(book)).get_best_prices("KXT-A")
     assert bid == 0.04                                # best (max) YES bid
     assert ask == pytest.approx(0.55, abs=1e-6)       # 1 - best NO bid (synthesized)
+
+
+async def test_list_markets_skips_mve_and_inactive():
+    events = {"events": [
+        # MVE parlay event — must be skipped wholesale even though its market is "active".
+        {"event_ticker": "KXMVESPORTS-1", "category": "Sports", "markets": [
+            {"ticker": "mve-mkt", "yes_bid_dollars": "0.40", "yes_ask_dollars": "0.44",
+             "volume_24h_fp": "500", "open_interest_fp": "100", "close_time": "2030-01-01T00:00:00Z"}]},
+        # Real event with one active + one dead (empty-book) market.
+        {"event_ticker": "KXT", "title": "Will X?", "category": "Politics", "markets": [
+            {"ticker": "live-mkt", "yes_bid_dollars": "0.40", "yes_ask_dollars": "0.44",
+             "volume_24h_fp": "500", "open_interest_fp": "100", "close_time": "2030-01-01T00:00:00Z"},
+            {"ticker": "dead-mkt", "yes_bid_dollars": "0.00", "yes_ask_dollars": "1.00",
+             "volume_24h_fp": "0", "close_time": "2030-01-01T00:00:00Z"}]},
+    ], "cursor": None}
+    ms = await KalshiAdapter(http=_Http(events)).list_markets(limit=50)
+    assert {m.id for m in ms} == {"live-mkt"}   # MVE + inactive dropped

@@ -64,3 +64,19 @@ def test_per_market_cap_clamps_large_kelly():
                        _research(fair=0.90, conf=0.95), daily_loss_so_far=0.0, **PARAMS)
     assert r.decision.side == TradeSide.BUY_YES
     assert r.decision.size_usd <= PARAMS["max_exposure_per_market_usd"]
+
+
+def test_buys_no_when_no_side_has_the_edge():
+    # fair 0.30 -> NO edge (0.70 - 0.45) beats the negative YES edge.
+    r = compute_sizing(_market(yes=0.55, no=0.45), _research(fair=0.30, conf=0.80),
+                       daily_loss_so_far=0.0, **PARAMS)
+    assert r.decision.side == TradeSide.BUY_NO
+
+
+def test_minimum_stake_skips_when_below_one_dollar():
+    # Tiny bankroll -> Kelly stake < $1 -> SKIP on the minimum-stake guard.
+    params = {**PARAMS, "bankroll_usd": 10.0}
+    r = compute_sizing(_market(yes=0.49, no=0.51), _research(fair=0.55, conf=0.80),
+                       daily_loss_so_far=0.0, **params)
+    assert r.decision.side == TradeSide.SKIP
+    assert r.risk_checks["minimum_stake"]["pass"] is False
