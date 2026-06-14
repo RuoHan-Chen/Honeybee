@@ -1,0 +1,100 @@
+"""Kalshi adapter: price/schema parsing + orderbook ask-synthesis."""
+from __future__ import annotations
+
+import pytest
+
+from src.venue.kalshi import KalshiAdapter, _norm_price
+
+
+class _Resp:
+    def __init__(self, data): self._data = data
+    def raise_for_status(self): return None
+    def json(self): return self._data
+
+
+class _Http:
+    def __init__(self, data): self._data = data
+    async def get(self, url, params=None): return _Resp(self._data)
+    async def aclose(self): return None
+
+
+def test_norm_price_dollars_vs_cents():
+    assert _norm_price("0.0400") == 0.04        # new dollar schema
+    assert _norm_price("65") == 0.65            # legacy cents -> /100
+    assert _norm_price(None) is None
+
+
+def test_is_active_requires_volume():
+    assert KalshiAdapter._is_active({"volume_24h_fp": "10"}) is True
+    assert KalshiAdapter._is_active({"volume_24h_fp": "0"}) is False
+    assert KalshiAdapter._is_active({}) is False
+
+
+def test_parse_uses_bid_ask_mid_oi_and_spread():
+    m = KalshiAdapter()._parse(
+        {"ticker": "KXT-A", "yes_bid_dollars": "0.40", "yes_ask_dollars": "0.44",
+         "volume_24h_fp": "500", "open_interest_fp": "1000", "close_time": "2030-01-01T00:00:00Z"},
+        {"title": "Will X happen?", "category": "Politics", "series_ticker": "KXT-2030"},
+    )
+    assert m is not None
+    assert m.yes_price == 0.42 and m.no_price == 0.58       # midpoint of bid/ask
+    assert m.spread == pytest.approx(0.04, abs=1e-6)        # real market spread
+    assert m.liquidity == 1000.0                            # open-interest proxy
+    assert m.volume_24h == 500.0
+
+
+def test_parse_degenerate_book_defaults_to_half():
+    m = KalshiAdapter()._parse(
+        {"ticker": "X", "yes_bid_dollars": "0.00", "yes_ask_dollars": "1.00",
+         "volume_24h_fp": "0", "close_time": "2030-01-01T00:00:00Z"},
+        {"title": "Y"},
+    )
+    assert m.yes_price == 0.5
+
+
+async def test_get_best_prices_synthesizes_ask_from_no_bids():
+    book = {"orderbook_fp": {
+        "yes_dollars": [["0.03", "100"], ["0.04", "200"]],
+        "no_dollars":  [["0.45", "10"], ["0.40", "5"]],
+    }}
+    bid, ask = await KalshiAdapter(http=_Http(book)).get_best_prices("KXT-A")
+    assert bid == 0.04                                # best (max) YES bid
+    assert ask == pytest.approx(0.55, abs=1e-6)       # 1 - best NO bid (synthesized)
+
+
+async def test_list_markets_skips_mve_and_inactive(monkeypatch):
+    monkeypatch.setenv("KALSHI_SERIES", "")   # firehose-only: isolate this test
+    events = {"events": [
+        # MVE parlay event — must be skipped wholesale even though its market is "active".
+        {"event_ticker": "KXMVESPORTS-1", "category": "Sports", "markets": [
+            {"ticker": "mve-mkt", "yes_bid_dollars": "0.40", "yes_ask_dollars": "0.44",
+             "volume_24h_fp": "500", "open_interest_fp": "100", "close_time": "2030-01-01T00:00:00Z"}]},
+        # Real event with one active + one dead (empty-book) market.
+        {"event_ticker": "KXT", "title": "Will X?", "category": "Politics", "markets": [
+            {"ticker": "live-mkt", "yes_bid_dollars": "0.40", "yes_ask_dollars": "0.44",
+             "volume_24h_fp": "500", "open_interest_fp": "100", "close_time": "2030-01-01T00:00:00Z"},
+            {"ticker": "dead-mkt", "yes_bid_dollars": "0.00", "yes_ask_dollars": "1.00",
+             "volume_24h_fp": "0", "close_time": "2030-01-01T00:00:00Z"}]},
+    ], "cursor": None}
+    ms = await KalshiAdapter(http=_Http(events)).list_markets(limit=50)
+    assert {m.id for m in ms} == {"live-mkt"}   # MVE + inactive dropped
+
+
+async def test_watchlist_pulls_configured_series(monkeypatch):
+    monkeypatch.setenv("KALSHI_SERIES", "KXCHESSWORLDCHAMPION")
+    chess = {"events": [{
+        "event_ticker": "KXCHESSWORLDCHAMPION", "title": "FIDE World Chess Championship 2026 Winner",
+        "category": "Sports", "series_ticker": "KXCHESSWORLDCHAMPION", "markets": [
+            {"ticker": "KXCHESSWORLDCHAMPION-GDOM", "yes_bid_dollars": "0.33", "yes_ask_dollars": "0.34",
+             "volume_24h_fp": "1325", "open_interest_fp": "75000", "close_time": "2030-01-01T00:00:00Z",
+             "yes_sub_title": "Gukesh"}]}]}
+
+    class _Route:
+        async def get(self, url, params=None):
+            if (params or {}).get("series_ticker"):
+                return _Resp(chess)            # watchlist hit
+            return _Resp({"events": [], "cursor": None})  # firehose empty
+        async def aclose(self): return None
+
+    ms = await KalshiAdapter(http=_Route()).list_markets(limit=50)
+    assert any(m.id == "KXCHESSWORLDCHAMPION-GDOM" for m in ms)   # surfaced via watchlist

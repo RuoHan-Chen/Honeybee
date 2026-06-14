@@ -1,4 +1,10 @@
 .env
+.env.*
+!.env.example
+# Private keys / credentials — never commit (incl. Kalshi API key PEMs)
+*.pem
+*.key
+kalshi_private_key.pem
 .venv/
 venv/
 __pycache__/

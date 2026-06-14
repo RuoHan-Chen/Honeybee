@@ -136,11 +136,23 @@ class PolymarketAdapter(VenueAdapter):
             log.debug("polymarket book fetch failed: %s", e)
             return None
 
+        # Polymarket returns bids ascending and asks descending. Sort to
+        # best-first (bids desc, asks asc) so best_bid/best_ask/spread and the
+        # top-20 truncation reflect the real top of book — otherwise every
+        # spread comes out ~0.98 from the worst levels.
+        bids = sorted(
+            (OrderbookLevel(float(b["price"]), float(b["size"])) for b in (book.get("bids") or [])),
+            key=lambda lvl: lvl.price, reverse=True,
+        )
+        asks = sorted(
+            (OrderbookLevel(float(a["price"]), float(a["size"])) for a in (book.get("asks") or [])),
+            key=lambda lvl: lvl.price,
+        )
         return Orderbook(
             market_id=market_id,
             outcome=outcome,
-            bids=[OrderbookLevel(float(b["price"]), float(b["size"])) for b in (book.get("bids") or [])][:20],
-            asks=[OrderbookLevel(float(a["price"]), float(a["size"])) for a in (book.get("asks") or [])][:20],
+            bids=bids[:20],
+            asks=asks[:20],
         )
 
     async def submit_order(self, order: Order) -> Fill | None:

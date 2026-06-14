@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, Recommendation } from '@/lib/api';
 import { useUser } from '@/components/UserWallet';
 
-export default function Trades() {
+function TradesInner() {
   const u = useUser();
   const sp = useSearchParams();
   const focusId = sp.get('id');
@@ -84,6 +84,15 @@ export default function Trades() {
         </Group>
       )}
     </div>
+  );
+}
+
+// useSearchParams must sit under a Suspense boundary for the App Router build.
+export default function Trades() {
+  return (
+    <Suspense fallback={null}>
+      <TradesInner />
+    </Suspense>
   );
 }
 

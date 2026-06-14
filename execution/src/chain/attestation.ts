@@ -17,9 +17,10 @@
  * or a local namehash computation as a fallback.
  */
 import { createHash } from 'node:crypto';
-import { keccak256, toHex, encodePacked, stringToBytes } from 'viem';
+import { encodeFunctionData, keccak256, toHex, encodePacked, stringToBytes } from 'viem';
 
 import { publicArc, walletArcFromEnv, arcExplorerTxUrl, arc } from './arc.js';
+import { sendTxFromPrivy } from '../wallet/privy.js';
 
 const REGISTRY = (process.env.ATTESTATION_REGISTRY_ADDRESS ?? '') as `0x${string}` | '';
 const IDENTITY = (process.env.AGENT_IDENTITY_ADDRESS ?? '') as `0x${string}` | '';
@@ -130,11 +131,49 @@ async function send(args: {
   fn: 'attestResearch' | 'attestTrade' | 'attestResolution';
   params: unknown[];
   agentNode?: `0x${string}`;
+  /**
+   * If provided, the tx is signed and submitted by this Privy wallet (so
+   * msg.sender == the agent's identity address, satisfying AttestationRegistry's
+   * "not agent addr" require). If omitted, falls back to the env-derived
+   * deployer key (only valid for trade/resolution attestations or for the
+   * legacy demo identity).
+   */
+  fromWalletId?: string;
 }): Promise<AnchorResult> {
-  const wallet = walletArcFromEnv();
-  if (MODE !== 'onchain' || !REGISTRY || !wallet) {
+  if (MODE !== 'onchain' || !REGISTRY) {
     return mockTx(JSON.stringify(args), args.agentNode);
   }
+
+  // Privy-signed path: encode the call ourselves and route via the agent wallet.
+  if (args.fromWalletId) {
+    const data = encodeFunctionData({
+      abi: REGISTRY_ABI,
+      functionName: args.fn,
+      args: args.params as never,
+    });
+    const { hash } = await sendTxFromPrivy({
+      walletId: args.fromWalletId,
+      to: REGISTRY,
+      data,
+    });
+    let blockNumber: number | null = null;
+    try {
+      const receipt = await publicArc().waitForTransactionReceipt({ hash, timeout: 30_000 });
+      blockNumber = Number(receipt.blockNumber);
+    } catch { /* leave null */ }
+    return {
+      tx_hash: hash,
+      block_number: blockNumber,
+      chain_id: arc.id,
+      explorer_url: arcExplorerTxUrl(hash),
+      mock: false,
+      agent_node: args.agentNode,
+    };
+  }
+
+  // Legacy / deployer-signed path.
+  const wallet = walletArcFromEnv();
+  if (!wallet) return mockTx(JSON.stringify(args), args.agentNode);
   const hash = await wallet.writeContract({
     address: REGISTRY,
     abi: REGISTRY_ABI,
@@ -161,12 +200,15 @@ export async function anchorResearch(input: {
   /** ENS label, full dotted name, or bytes32 node. */
   ens: string;
   marketId: string;
+  /** Privy walletId of the agent — must own the identity node (sig check). */
+  fromWalletId?: string;
 }): Promise<AnchorResult> {
   const node = resolveAgentNode(input.ens);
   return send({
     fn: 'attestResearch',
     params: [ensureBytes32(input.researchHash), node, input.marketId],
     agentNode: node,
+    fromWalletId: input.fromWalletId,
   });
 }
 
@@ -179,6 +221,8 @@ export async function anchorTrade(input: {
   side: 'BUY' | 'SELL';
   price: number;
   sizeUsd: number;
+  /** Privy walletId of the agent — must own the identity node. */
+  fromWalletId?: string;
 }): Promise<AnchorResult> {
   const ensRef = input.ens ?? process.env.ENS_AGENT_LABEL ?? '';
   const node = resolveAgentNode(ensRef);
@@ -194,6 +238,7 @@ export async function anchorTrade(input: {
       BigInt(Math.round(input.sizeUsd * 1_000_000)),
     ],
     agentNode: node,
+    fromWalletId: input.fromWalletId,
   });
 }
 
@@ -201,8 +246,14 @@ export async function anchorResolution(input: {
   recId: string;
   resolvedOutcome: string;
   pnlUsd: number;
+  /**
+   * Privy walletId of the agent that anchored the original Trade. The
+   * AttestationRegistry reads the agentNode from the stored Trade and
+   * requires msg.sender == addrOf(agentNode), so the resolution MUST come
+   * from the same agent's wallet.
+   */
+  fromWalletId?: string;
 }): Promise<AnchorResult> {
-  // Resolution doesn't take agentNode — the contract reads it from the stored Trade.
   return send({
     fn: 'attestResolution',
     params: [
@@ -210,6 +261,7 @@ export async function anchorResolution(input: {
       input.resolvedOutcome,
       BigInt(Math.round(input.pnlUsd * 1_000_000)),
     ],
+    fromWalletId: input.fromWalletId,
   });
 }
 

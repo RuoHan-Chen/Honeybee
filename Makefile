@@ -1,4 +1,4 @@
-.PHONY: setup demo wallet api web up test clean contracts-build contracts-test contracts-deploy contracts-deploy-local bootstrap-privy provision-agents
+.PHONY: setup demo wallet api web up test clean contracts-build contracts-test contracts-deploy contracts-deploy-local bootstrap-privy provision-agents agent-loop
 
 NPM := npm --cache .npm-cache
 
@@ -74,6 +74,13 @@ bootstrap-privy:
 provision-agents:
 	@set -a; . ./.env; set +a; \
 	./node_modules/.bin/tsx scripts/provision_agents.ts
+
+# Run the alpha-trader autonomous loop: every TICK_SEC it pays the analysts
+# in USDC via x402 and anchors a blended research attestation on Arc.
+# Requires the wallet service (`make wallet`) to be running on :8787.
+agent-loop:
+	@set -a; . ./.env; set +a; \
+	./node_modules/.bin/tsx scripts/agent_loop.ts
 
 clean:
 	rm -rf var/*.db __pycache__ .pytest_cache dist node_modules web/node_modules web/.next

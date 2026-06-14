@@ -1,0 +1,41 @@
+# Honeybee trading mandate — risk limits, verticals, discovery filters.
+# Secrets (API keys, private keys) stay in .env, never here.
+
+bankroll_usd: 1000.0
+kelly_fraction: 0.25              # conservative fractional Kelly
+max_exposure_per_market_usd: 25.0
+max_concurrent_positions: 20
+daily_loss_limit_usd: 100.0       # tripping this halts the loop
+
+min_edge: 0.05                    # 5 percentage-point minimum edge to trade
+min_confidence: 0.55              # abstain if Research confidence < this
+
+# Discovery filters
+discovery:
+  max_liquidity_usd: 50000        # ignore deep, efficiently-priced markets
+  min_spread: 0.02                # ignore markets with <2ct spread (already tight)
+  min_volume_24h_usd: 50          # ignore completely dead markets
+  max_volume_24h_usd: 50000       # upper bound (long-tail focus)
+  min_hours_to_resolution: 1
+  max_days_to_resolution: 365
+  top_n: 5                        # candidates per discovery cycle (raise for prod)
+
+# Verticals in scope
+verticals:
+  - sports
+  - politics
+  - macro
+  - weather
+  - other
+
+# Slippage guard: never cross more than this fraction of stated liquidity
+max_liquidity_fraction: 0.05
+
+# Orchestrator cadence
+loop_interval_sec: 60
+
+# LLM routing
+llm:
+  routine_model: "claude-sonnet-4-6"   # Research Agent deep analysis
+  triage_model: "claude-haiku-4-5-20251001"     # cheap triage pass
+  max_usd_per_loop: 0.50

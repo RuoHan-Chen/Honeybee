@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto';
 
 import { signPrivyRequest } from './privy_sign.js';
+import { USDC, encodeUsdcTransfer } from '../chain/usdc.js';
 
 export interface AgentWallet {
   id: string;
@@ -213,6 +214,46 @@ export async function sendTxFromPrivy(args: {
         value: valueHex,
         chain_id: chainId,
         ...(args.data ? { data: args.data } : {}),
+      },
+    },
+  };
+
+  const out = await privyFetch<{
+    method: string;
+    data: { hash: string; caip2: string };
+  }>({
+    path: `/wallets/${args.walletId}/rpc`,
+    method: 'POST',
+    body,
+    signWithOwner: true,
+  });
+
+  return { hash: out.data.hash as `0x${string}`, caip2: out.data.caip2 };
+}
+
+/**
+ * Pay USDC from a Privy wallet. Builds the ERC-20 `transfer(to, baseUnits)`
+ * calldata and submits it via the wallet's RPC. Subject to the same auth-key
+ * signing + Privy policy enforcement as any other tx.
+ */
+export async function sendUsdcFromPrivy(args: {
+  walletId: string;
+  to: `0x${string}`;
+  baseUnits: bigint;
+  chainId?: number;
+}): Promise<SendTxResult> {
+  const chainId = args.chainId ?? Number(process.env.ARC_CHAIN_ID ?? 5042002);
+  const data = encodeUsdcTransfer(args.to, args.baseUnits);
+
+  const body = {
+    method: 'eth_sendTransaction',
+    caip2: `eip155:${chainId}`,
+    params: {
+      transaction: {
+        to: USDC,
+        value: '0x0',
+        chain_id: chainId,
+        data,
       },
     },
   };
