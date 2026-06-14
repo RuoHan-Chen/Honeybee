@@ -49,6 +49,13 @@ const SUPPORTED: Record<number, Set<string>> = {
   42161: new Set(['0xaf88d065e77c8cc2239327c5edb3a432268e5831']),                   // Arbitrum USDC
 };
 
+// Blink testnet sandbox routes (Base Sepolia + Sepolia USDC). Relay's mainnet
+// /chains doesn't list these, so the sandbox combos are allowlisted explicitly.
+const SANDBOX_SUPPORTED: Record<number, Set<string>> = {
+  84532: new Set(['0x036cbd53842c5426634e7929541ec2318f3dcf7e']),     // Base Sepolia USDC
+  11155111: new Set(['0x1c7d4b196cb0c7b01d743fbc6116a902379c7238']),  // Sepolia USDC
+};
+
 // Authoritative support comes from Blink's routing layer (Relay) Chains API at
 // runtime; the static table above is only used if that endpoint is unreachable.
 const RELAY_CHAINS_URL = 'https://api.relay.link/chains';
@@ -72,6 +79,7 @@ async function getChains(): Promise<any[] | null> {
 /** Validate (chainId, token) against Relay's live routing catalog. */
 async function isSupported(chainId: number, token: string): Promise<boolean> {
   const tokenLc = token.toLowerCase();
+  if (SANDBOX_SUPPORTED[chainId]?.has(tokenLc)) return true;  // testnet sandbox combos
   const chains = await getChains();
   if (chains) {
     const chain = chains.find((c: any) => c.id === chainId);

@@ -18,6 +18,12 @@ import { BlinkDeposit } from '@/components/BlinkDeposit';
 import { walletApi, type FleetAgent } from '@/lib/api';
 
 const PRESETS = [
+  // Testnet sandbox (NEXT_PUBLIC_BLINK_ENV=sandbox) — only Base Sepolia + Sepolia.
+  { id: 'base-sepolia-usdc', label: 'Base Sepolia · USDC (sandbox)', chainId: 84532,
+    token: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' },
+  { id: 'sepolia-usdc', label: 'Sepolia · USDC (sandbox)', chainId: 11155111,
+    token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
+  // Mainnet (NEXT_PUBLIC_BLINK_ENV=production).
   { id: 'base-usdc', label: 'Base · USDC (agent economy)', chainId: 8453,
     token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
   { id: 'polygon-usdce', label: 'Polygon · USDC.e (Polymarket trading)', chainId: 137,

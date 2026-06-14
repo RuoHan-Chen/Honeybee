@@ -176,7 +176,113 @@ class LiveWallet(Wallet):
         )
 
 
+class KalshiWallet(Wallet):
+    """Live Kalshi execution via RSA-PSS-signed order submission.
+
+    Defaults to the DEMO sandbox (KALSHI_API_URL) so fills cost no real money —
+    the safe, provable execution path. Signing uses the system `openssl`
+    (RSA-PSS-SHA256, salt = digest length) so there's no extra Python dependency,
+    matching the scheme in execution/src/venues/kalshi.ts:
+        signature = base64( RSA-PSS-SHA256( `${tsMs}${METHOD}${signingPath}` ) )
+
+    Point KALSHI_API_URL at production only when you mean it (real money).
+    """
+
+    is_live = True
+    _DEMO = "https://external-api.demo.kalshi.co/trade-api/v2"
+
+    def __init__(self) -> None:
+        self._base = os.getenv("KALSHI_API_URL", self._DEMO).rstrip("/")
+        self._key_id = os.getenv("KALSHI_API_KEY_ID", "").strip()
+        self._key_path = os.getenv("KALSHI_PRIVATE_KEY_PATH", "").strip()
+        if not self._key_id or not self._key_path:
+            raise EnvironmentError(
+                "KalshiWallet needs KALSHI_API_KEY_ID + KALSHI_PRIVATE_KEY_PATH. "
+                "Run without --live (paper) if you don't have Kalshi creds."
+            )
+
+    def _signed_headers(self, method: str, signing_path: str) -> dict[str, str]:
+        import base64
+        import subprocess
+        import time
+
+        ts = str(int(time.time() * 1000))  # Kalshi wants milliseconds
+        message = f"{ts}{method}{signing_path}"
+        proc = subprocess.run(
+            ["openssl", "dgst", "-sha256", "-sign", self._key_path,
+             "-sigopt", "rsa_padding_mode:pss", "-sigopt", "rsa_pss_saltlen:digest", "-binary"],
+            input=message.encode(), capture_output=True,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"openssl RSA-PSS sign failed: {proc.stderr.decode()[:200]}")
+        return {
+            "KALSHI-ACCESS-KEY": self._key_id,
+            "KALSHI-ACCESS-SIGNATURE": base64.b64encode(proc.stdout).decode(),
+            "KALSHI-ACCESS-TIMESTAMP": ts,
+            "Content-Type": "application/json",
+        }
+
+    async def submit(self, decision: TradeDecision, market_price: float) -> Fill | None:
+        if decision.side == TradeSide.SKIP:
+            return None
+        import uuid
+        from urllib.parse import urlparse
+
+        import httpx
+
+        yes_no = "yes" if decision.side == TradeSide.BUY_YES else "no"
+        # decision.limit_price is the slippage-capped worst acceptable price.
+        px = max(0.01, min(0.99, round(decision.limit_price, 2)))
+        count = max(1, int(decision.size_usd // px))
+        price_field = "yes_price_dollars" if yes_no == "yes" else "no_price_dollars"
+        body = {
+            "ticker": decision.market_id, "action": "buy", "side": yes_no, "count": count,
+            "type": "limit", price_field: f"{px:.2f}",
+            "time_in_force": "immediate_or_cancel",   # marketable; cancels unfilled remainder
+            "client_order_id": str(uuid.uuid4()),
+        }
+        # Signature path = full URL pathname incl. the /trade-api/v2 prefix, no query.
+        signing_path = urlparse(f"{self._base}/portfolio/orders").path
+        try:
+            headers = self._signed_headers("POST", signing_path)
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                r = await client.post(f"{self._base}/portfolio/orders", headers=headers, json=body)
+                r.raise_for_status()
+                data = r.json()
+        except Exception as e:
+            # Honest failure — never fake a paper fill on a live order.
+            log.error("KalshiWallet submit failed for %s (balance / liquidity / creds?): %s",
+                      decision.market_id, e)
+            return None
+
+        order = data.get("order", {}) or {}
+        filled = float(order.get("fill_count_fp") or 0)
+        cost = float(order.get("taker_fill_cost_dollars") or 0)
+        if filled <= 0:
+            # IOC found no liquidity to cross — no position taken.
+            log.warning("Kalshi IOC unfilled for %s (status=%s)", decision.market_id, order.get("status"))
+            return None
+        avg = round(cost / filled, 4)
+        order_id = str(order.get("order_id", ""))
+        log.info("[LIVE-kalshi] %s market=%s filled=%s @ %.4f cost=$%.2f order=%s",
+                 decision.side.value, decision.market_id, filled, avg, cost, order_id)
+        return Fill(
+            market_id=decision.market_id,
+            side=decision.side,
+            size_usd=round(cost, 2),
+            avg_price=avg,
+            tx_ref=order_id,
+            timestamp=datetime.utcnow(),
+            paper=False,
+        )
+
+
 def build_wallet(live: bool = False) -> Wallet:
-    if live:
-        return LiveWallet()
-    return PaperWallet()
+    """Paper by default. With live=True, pick the venue via VENUE env:
+    VENUE=kalshi → KalshiWallet (demo sandbox = safe), else LiveWallet (Polymarket mainnet).
+    """
+    if not live:
+        return PaperWallet()
+    if os.getenv("VENUE", "").strip().lower() == "kalshi":
+        return KalshiWallet()
+    return LiveWallet()

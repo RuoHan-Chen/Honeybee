@@ -32,6 +32,9 @@ export function BlinkDeposit({
   const { status, error, displayMessage, requestDeposit } = useBlinkDeposit({
     signer: '/api/sign-payment',
     merchantId: process.env.NEXT_PUBLIC_BLINK_MERCHANT_ID,
+    // Sandbox points the hosted flow at pay-sandbox.blink.cash (testnet); set
+    // NEXT_PUBLIC_BLINK_ENV=production to use mainnet.
+    environment: (process.env.NEXT_PUBLIC_BLINK_ENV as 'sandbox' | 'production' | undefined) ?? 'sandbox',
   });
 
   async function handle() {
