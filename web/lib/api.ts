@@ -159,3 +159,12 @@ export const walletApi = {
   /** Returns an EventSource subscribed to the live activity feed. */
   streamActivity: (): EventSource => new EventSource(`${WALLET}/activity/stream`),
 };
+
+/** Turn any thrown value into a calm, user-facing message — never a raw TypeError. */
+export function niceError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (/failed to fetch|networkerror|load failed|econnrefused|fetch failed|\bnetwork\b/i.test(m)) {
+    return 'Unable to connect — the service may be offline.';
+  }
+  return 'Something went wrong. Please try again.';
+}

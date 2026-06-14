@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { api, Agent, MarketCandidate, Recommendation } from '@/lib/api';
+import { api, niceError, Agent, MarketCandidate, Recommendation } from '@/lib/api';
 import { useUser } from '@/components/UserWallet';
 
 /** Safe `.toFixed` for values that might be undefined/null (e.g. backend
@@ -59,7 +59,7 @@ export default function Marketplace() {
       }
       setResult(r);
     } catch (e: any) {
-      setErr(e.message);
+      setErr(niceError(e));
     } finally {
       setHiring(false);
     }

@@ -50,7 +50,7 @@ export default function DepositPage() {
         setFleet(f);
         if (f[0]) setSelected(f[0].address);
       })
-      .catch((e) => setErr(String(e)));
+      .catch(() => setErr('offline'));
   }, []);
 
   // Auto-fill the destination from the connected wallet so there's nothing to
@@ -72,7 +72,7 @@ export default function DepositPage() {
         the merchant key never hits the browser.
       </p>
 
-      {err && <p className="mt-4 text-rose-400 text-sm">Could not load fleet: {err}</p>}
+      {err && <p className="mt-4 text-amber-300/80 text-sm">Agent list unavailable — enter a destination address below.</p>}
 
       <div className="mt-6 space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
         <label className="block text-sm text-zinc-300">

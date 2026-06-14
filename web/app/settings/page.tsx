@@ -27,7 +27,7 @@ export default function Settings() {
           </div>
         )}
         <p className="text-xs text-white/40">
-          Privy embedded + external connect will replace this stub once your <code>PRIVY_APP_ID</code> lands.
+          Connect with MetaMask (or any browser wallet). Stored locally in your browser only.
         </p>
       </section>
 
@@ -70,7 +70,7 @@ export default function Settings() {
           </div>
         </div>
         <p className="text-xs text-white/40">
-          Enforced client-side (UI), server-side (broker connector), and on-chain (AttestationRegistry guards). Defense in depth.
+          Caps apply in the app and are enforced again server-side before any trade is sent.
         </p>
       </section>
     </div>
